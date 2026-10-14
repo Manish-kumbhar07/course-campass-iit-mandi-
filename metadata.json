@@ -1,0 +1,6 @@
+{
+  "name": "CourseCompass",
+  "description": "Turn scattered study material into your clearest path forward. Source-grounded AI tutoring, adaptive quizzes, and prerequisite mastery maps for college students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
