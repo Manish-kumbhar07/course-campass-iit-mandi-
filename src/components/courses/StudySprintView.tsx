@@ -38,6 +38,24 @@ export const StudySprintView: React.FC<StudySprintViewProps> = ({
   const [practiceAnswer, setPracticeAnswer] = useState<number | null>(null);
   const [practiceSubmitted, setPracticeSubmitted] = useState<boolean>(false);
 
+  if (!concepts || concepts.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto bg-white border border-[#E1E4D8] rounded-2xl p-10 text-center space-y-4 shadow-2xs">
+        <div className="w-12 h-12 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] text-[#263F2B] flex items-center justify-center mx-auto">
+          <Clock className="w-6 h-6 text-[#263F2B]" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="font-serif-display text-lg font-bold text-[#17241B]">
+            No sprint concepts available
+          </h3>
+          <p className="text-xs text-[#5D655B] max-w-sm mx-auto leading-relaxed">
+            Upload course materials to unlock focused 15-minute concept study sprints.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const selectedConcept =
     concepts.find((c) => c.id === selectedConceptId) || concepts[0];
 

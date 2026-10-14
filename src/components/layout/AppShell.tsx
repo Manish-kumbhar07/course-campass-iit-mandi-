@@ -121,8 +121,14 @@ export const AppShell: React.FC<AppShellProps> = ({
                 title="Switch subject or view enrolled courses"
               >
                 <BookOpen className="w-3.5 h-3.5 text-[#697650]" />
-                <span className="font-semibold text-[#263F2B]">{profile.courseCode}:</span>
-                <span className="truncate max-w-[140px]">{profile.currentCourse}</span>
+                {profile.currentCourse ? (
+                  <>
+                    <span className="font-semibold text-[#263F2B]">{profile.courseCode}:</span>
+                    <span className="truncate max-w-[140px]">{profile.currentCourse}</span>
+                  </>
+                ) : (
+                  <span className="font-semibold text-[#263F2B]">Select or Create Course</span>
+                )}
                 <ChevronDown className="w-3 h-3 text-[#5D655B]" />
               </button>
 
@@ -133,35 +139,41 @@ export const AppShell: React.FC<AppShellProps> = ({
                       My Enrolled Subjects
                     </span>
                     <span className="text-[10px] text-[#777E70]">
-                      {profile.enrolledSubjects?.length || 1} Courses
+                      {profile.enrolledSubjects?.length || 0} Courses
                     </span>
                   </div>
 
                   <div className="py-1 max-h-56 overflow-y-auto">
-                    {(profile.enrolledSubjects || []).map((subj) => {
-                      const isActive = subj.code === profile.courseCode;
-                      return (
-                        <button
-                          key={subj.id}
-                          type="button"
-                          onClick={() => {
-                            onSwitchSubject?.(subj);
-                            setCourseDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
-                            isActive
-                              ? 'bg-[#F1F2E6] text-[#263F2B] font-semibold'
-                              : 'hover:bg-[#F8F7EF] text-[#17241B]'
-                          }`}
-                        >
-                          <div className="truncate pr-2">
-                            <span className="font-mono text-[11px] font-bold block">{subj.code}</span>
-                            <span className="text-[11px] truncate block text-[#5D655B]">{subj.name}</span>
-                          </div>
-                          {isActive && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                        </button>
-                      );
-                    })}
+                    {(profile.enrolledSubjects || []).length === 0 ? (
+                      <div className="px-3 py-3 text-center text-xs text-[#5D655B]">
+                        No courses enrolled yet
+                      </div>
+                    ) : (
+                      (profile.enrolledSubjects || []).map((subj) => {
+                        const isActive = subj.code === profile.courseCode;
+                        return (
+                          <button
+                            key={subj.id}
+                            type="button"
+                            onClick={() => {
+                              onSwitchSubject?.(subj);
+                              setCourseDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
+                              isActive
+                                ? 'bg-[#F1F2E6] text-[#263F2B] font-semibold'
+                                : 'hover:bg-[#F8F7EF] text-[#17241B]'
+                            }`}
+                          >
+                            <div className="truncate pr-2">
+                              <span className="font-mono text-[11px] font-bold block">{subj.code}</span>
+                              <span className="text-[11px] truncate block text-[#5D655B]">{subj.name}</span>
+                            </div>
+                            {isActive && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
 
                   <div className="border-t border-[#E1E4D8] pt-1.5 px-2">
@@ -169,7 +181,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                       type="button"
                       onClick={() => {
                         setCourseDropdownOpen(false);
-                        onNavigateTab('dashboard');
+                        onNewCourse();
                       }}
                       className="w-full text-center py-2 px-3 rounded-lg bg-[#263F2B] hover:bg-[#1e3222] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >

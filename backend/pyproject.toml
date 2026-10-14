@@ -1,0 +1,33 @@
+[project]
+name = "coursecompass-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.13,<2",
+  "asyncpg>=0.29,<1",
+  "bcrypt>=4.1,<6",
+  "boto3>=1.34,<2",
+  "fastapi>=0.115,<1",
+  "email-validator>=2.2,<3",
+  "python-jose[cryptography]>=3.3,<4",
+  "pydantic-settings>=2.6,<3",
+  "redis>=5,<7",
+  "python-multipart>=0.0.12,<1",
+  "sqlalchemy[asyncio]>=2.0.36,<3",
+  "uvicorn[standard]>=0.32,<1",
+]
+
+[project.optional-dependencies]
+test = [
+  "aiosqlite>=0.20,<1",
+  "httpx>=0.27,<1",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.24,<1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

@@ -1,10 +1,15 @@
 /**
  * Authentication Service for CourseCompass
- * Implements the required interface:
- * getSession(), signIn(), signUp(), signOut(), requestPasswordReset(), resetPassword(), verifyEmail(), getCurrentUser()
+ * Integrates with FastAPI /api/v1/auth endpoints:
+ * - /login (credentials)
+ * - /demo-login (pre-seeded Ananya Sharma session)
+ * - /signup (new account registration)
+ * - /logout (token revocation)
+ * With graceful offline demo session fallback when server is unreachable.
  */
 
 import { User, Session } from '../types';
+import { Api, IS_DEMO_MODE } from './api-client';
 
 const SESSION_STORAGE_KEY = 'coursecompass_auth_session';
 
@@ -29,7 +34,7 @@ export const AuthService = {
 
       // Check session expiry
       if (new Date(session.expiresAt).getTime() < Date.now()) {
-        this.signOut();
+        await this.signOut();
         return null;
       }
       return session;
@@ -43,51 +48,65 @@ export const AuthService = {
     return session ? session.user : null;
   },
 
-  async signIn(email: string, _password: string, isDemoStudent = false): Promise<Session> {
-    // Artificial latency for realism
-    await new Promise((r) => setTimeout(r, 400));
-
+  async signIn(email: string, password = '', isDemoStudent = false): Promise<Session> {
     if (!email || !email.includes('@')) {
       throw new Error('Please enter a valid academic or personal email address.');
     }
 
     const isDemo = isDemoStudent || email.includes('ananya');
 
-    const user: User = isDemo
-      ? {
-          id: 'usr-ananya-sharma',
-          name: 'Ananya Sharma',
-          email: 'ananya.sharma@collegemail.edu',
-          academicLevel: 'Second-year Undergraduate',
-          institution: 'School of Engineering & Applied Sciences',
-          isNewUser: false,
-          createdAt: '2026-09-01T08:00:00Z'
-        }
-      : {
-          id: `usr-${Date.now()}`,
-          name: email.split('@')[0].replace(/[._]/g, ' '),
-          email,
-          academicLevel: 'Undergraduate',
-          institution: 'University College',
-          isNewUser: true,
-          createdAt: new Date().toISOString()
+    // If demo requested and not explicitly forcing live mode without demo, call backend demo-login
+    try {
+      let session: Session;
+      if (isDemo) {
+        session = await Api.auth.demoLogin();
+      } else {
+        session = await Api.auth.login(email, password);
+      }
+
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      this.notify(session);
+      return session;
+    } catch (err) {
+      // In demo mode or if server is not reachable, fall back to offline simulation
+      if (IS_DEMO_MODE || isDemo) {
+        const fallbackUser: User = isDemo
+          ? {
+              id: 'usr-ananya-sharma',
+              name: 'Ananya Sharma',
+              email: 'ananya.sharma@collegemail.edu',
+              academicLevel: 'Second-year Undergraduate',
+              institution: 'School of Engineering & Applied Sciences',
+              isNewUser: false,
+              createdAt: '2026-09-01T08:00:00Z',
+            }
+          : {
+              id: `usr-${Date.now()}`,
+              name: email.split('@')[0].replace(/[._]/g, ' '),
+              email,
+              academicLevel: 'Undergraduate',
+              institution: 'University College',
+              isNewUser: true,
+              createdAt: new Date().toISOString(),
+            };
+
+        const fallbackSession: Session = {
+          user: fallbackUser,
+          token: `cc_sec_tok_${Math.random().toString(36).substring(2)}`,
+          expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+          isDemoSession: isDemo,
         };
 
-    const session: Session = {
-      user,
-      token: `cc_sec_tok_${Math.random().toString(36).substring(2)}`,
-      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
-      isDemoSession: isDemo
-    };
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(fallbackSession));
+        this.notify(fallbackSession);
+        return fallbackSession;
+      }
 
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    this.notify(session);
-    return session;
+      throw err;
+    }
   },
 
-  async signUp(name: string, email: string, _password: string): Promise<Session> {
-    await new Promise((r) => setTimeout(r, 500));
-
+  async signUp(name: string, email: string, password = ''): Promise<Session> {
     if (!name.trim()) {
       throw new Error('Please enter your full name.');
     }
@@ -95,35 +114,46 @@ export const AuthService = {
       throw new Error('Please enter a valid university or personal email address.');
     }
 
-    const user: User = {
-      id: `usr-${Date.now()}`,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      academicLevel: 'Undergraduate',
-      isNewUser: true,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const session = await Api.auth.signup(name, email, password);
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      this.notify(session);
+      return session;
+    } catch (err) {
+      if (IS_DEMO_MODE) {
+        const fallbackUser: User = {
+          id: `usr-${Date.now()}`,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          academicLevel: 'Undergraduate',
+          isNewUser: true,
+          createdAt: new Date().toISOString(),
+        };
 
-    const session: Session = {
-      user,
-      token: `cc_sec_tok_${Math.random().toString(36).substring(2)}`,
-      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-      isDemoSession: false
-    };
+        const fallbackSession: Session = {
+          user: fallbackUser,
+          token: `cc_sec_tok_${Math.random().toString(36).substring(2)}`,
+          expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+          isDemoSession: false,
+        };
 
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    this.notify(session);
-    return session;
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(fallbackSession));
+        this.notify(fallbackSession);
+        return fallbackSession;
+      }
+
+      throw err;
+    }
   },
 
   async signOut(): Promise<void> {
+    await Api.auth.logout();
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     this.notify(null);
   },
 
-  async requestPasswordReset(email: string): Promise<boolean> {
+  async requestPasswordReset(_email: string): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 400));
-    // Never reveal whether email exists for privacy/security
     return true;
   },
 
@@ -135,5 +165,5 @@ export const AuthService = {
   async verifyEmail(_token: string): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 300));
     return true;
-  }
+  },
 };

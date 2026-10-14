@@ -57,6 +57,19 @@ export const TopicProgressReport: React.FC<TopicProgressReportProps> = ({
   const learningCount = reportItems.filter((i) => i.status === 'learning').length;
   const attentionCount = reportItems.filter((i) => i.status === 'attention').length;
 
+  if (concepts.length === 0) {
+    return (
+      <div className="bg-white border border-[#E1E4D8] rounded-2xl p-8 text-center shadow-2xs space-y-2">
+        <h3 className="font-serif-display text-base font-bold text-[#17241B]">
+          Not enough learning activity yet.
+        </h3>
+        <p className="text-xs text-[#5D655B] max-w-md mx-auto">
+          Upload course materials and complete adaptive practice quizzes to begin tracking your conceptual mastery.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white border border-[#E1E4D8] rounded-2xl p-6 shadow-2xs space-y-5">
       {/* Header */}

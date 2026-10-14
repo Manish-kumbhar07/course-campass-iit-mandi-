@@ -29,6 +29,16 @@ export const SourceCitationModal: React.FC<SourceCitationModalProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!citation) return null;
 
   const handleCopy = () => {

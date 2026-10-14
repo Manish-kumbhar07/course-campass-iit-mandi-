@@ -31,6 +31,30 @@ export const AdaptiveQuizView: React.FC<AdaptiveQuizViewProps> = ({
   const [scoreCount, setScoreCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto bg-white border border-[#E1E4D8] rounded-2xl p-10 text-center space-y-4 shadow-2xs">
+        <div className="w-12 h-12 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] text-[#263F2B] flex items-center justify-center mx-auto">
+          <HelpCircle className="w-6 h-6 text-[#263F2B]" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="font-serif-display text-lg font-bold text-[#17241B]">
+            No quiz questions available yet
+          </h3>
+          <p className="text-xs text-[#5D655B] max-w-sm mx-auto leading-relaxed">
+            Upload course materials or lecture notes first so the system can extract concepts and generate verified adaptive quiz questions.
+          </p>
+        </div>
+        <button
+          onClick={() => onNavigateStudent('materials')}
+          className="px-4 py-2 bg-[#263F2B] text-white text-xs font-semibold rounded-lg hover:bg-[#1f3323] transition-colors"
+        >
+          Upload Course Materials
+        </button>
+      </div>
+    );
+  }
+
   const currentQuestion = questions[currentIndex];
 
   const handleSelectOption = (optId: string) => {

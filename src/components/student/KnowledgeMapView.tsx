@@ -29,7 +29,27 @@ export const KnowledgeMapView: React.FC<KnowledgeMapViewProps> = ({
   const [selectedConceptId, setSelectedConceptId] = useState<string>('c-base-cases');
   const [filter, setFilter] = useState<'all' | 'attention' | 'mastered'>('all');
 
+  if (!concepts || concepts.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto bg-white border border-[#E1E4D8] rounded-2xl p-10 text-center space-y-4 shadow-2xs">
+        <div className="w-12 h-12 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] text-[#263F2B] flex items-center justify-center mx-auto">
+          <Network className="w-6 h-6 text-[#263F2B]" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="font-serif-display text-lg font-bold text-[#17241B]">
+            No concepts mapped yet
+          </h3>
+          <p className="text-xs text-[#5D655B] max-w-sm mx-auto leading-relaxed">
+            Upload course materials or lecture slides to automatically extract curriculum concepts and build the prerequisite dependency map.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const selectedConcept = concepts.find((c) => c.id === selectedConceptId) || concepts[0];
+  const attentionCount = concepts.filter((c) => c.status === 'attention').length;
+  const masteredCount = concepts.filter((c) => c.status === 'mastered').length;
 
   const filteredConcepts = concepts.filter((c) => {
     if (filter === 'attention') return c.status === 'attention';
@@ -79,7 +99,7 @@ export const KnowledgeMapView: React.FC<KnowledgeMapViewProps> = ({
                 : 'text-[#5D655B] hover:text-[#17241B]'
             }`}
           >
-            Needs Attention (3)
+            Needs Attention ({attentionCount})
           </button>
           <button
             onClick={() => setFilter('mastered')}
@@ -89,7 +109,7 @@ export const KnowledgeMapView: React.FC<KnowledgeMapViewProps> = ({
                 : 'text-[#5D655B] hover:text-[#17241B]'
             }`}
           >
-            Mastered (2)
+            Mastered ({masteredCount})
           </button>
         </div>
       </div>

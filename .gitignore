@@ -1,3 +1,4 @@
+# Node & Frontend
 node_modules/
 build/
 dist/
@@ -6,3 +7,21 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+*.sqlite
+*.sqlite3
+*.db
+storage/

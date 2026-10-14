@@ -26,13 +26,15 @@ interface TutorChatViewProps {
   onSendMessage: (text: string, explanationLevel?: string) => void;
   onInspectCitation: (citation: SourceCitation) => void;
   materials: CourseMaterial[];
+  courseCode?: string;
 }
 
 export const TutorChatView: React.FC<TutorChatViewProps> = ({
   messages,
   onSendMessage,
   onInspectCitation,
-  materials
+  materials,
+  courseCode = 'Course'
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -40,11 +42,13 @@ export const TutorChatView: React.FC<TutorChatViewProps> = ({
   const [explanationLevel, setExplanationLevel] = useState<'introductory' | 'rigorous' | 'exam_prep'>('rigorous');
   const [language, setLanguage] = useState('English');
 
-  const suggestedPrompts = [
-    { text: 'Why does infinite recursion cause a stack overflow in DFS?', type: 'supported' },
-    { text: 'What is the three-color invariant for directed cycle detection?', type: 'supported' },
-    { text: 'How do Red-Black Tree rotation invariants work?', type: 'not_found' },
-    { text: 'Explain the base case identity element in recursive array sum', type: 'supported' }
+  const suggestedPrompts = materials.length > 0 ? [
+    { text: `What are the core concepts covered in ${courseCode}?`, type: 'supported' },
+    { text: 'Can you explain the main theorems or definitions from the uploaded material?', type: 'supported' },
+    { text: 'Explain a common exam misconception related to this course.', type: 'supported' },
+    { text: 'Can you provide outside context not found in the course materials?', type: 'not_found' }
+  ] : [
+    { text: 'What material should I upload to begin tutoring?', type: 'not_found' }
   ];
 
   const handleSend = (textToSend?: string) => {
@@ -79,7 +83,7 @@ export const TutorChatView: React.FC<TutorChatViewProps> = ({
               Course-Grounded Socratic Tutor
             </h2>
             <p className="text-xs text-[#5D655B]">
-              Every explanation is bound to Professor Henderson's courseware. If an answer is not in your materials, CourseCompass tells you.
+              Every explanation is bound to your indexed course materials for {courseCode}. If an answer is not in your materials, CourseCompass flags it.
             </p>
           </div>
 
@@ -195,7 +199,7 @@ export const TutorChatView: React.FC<TutorChatViewProps> = ({
                         <AlertTriangle className="w-4 h-4 text-[#D71935] shrink-0 mt-0.5" />
                         <div>
                           <strong>Boundary Warning: </strong>
-                          This question references topics not found in your uploaded CS 204 courseware. CourseCompass will not fabricate nonexistent citations.
+                          This question references topics not found in your indexed {courseCode} course materials. CourseCompass strictly adheres to verified source boundaries.
                         </div>
                       </div>
                     )}
@@ -339,29 +343,35 @@ export const TutorChatView: React.FC<TutorChatViewProps> = ({
               <h3 className="text-xs font-semibold uppercase tracking-wider text-[#697650]">
                 Active Course Corpus
               </h3>
-              <span className="text-[11px] font-mono-code text-[#263F2B]">CS 204</span>
+              <span className="text-[11px] font-mono-code text-[#263F2B] font-bold">{courseCode}</span>
             </div>
 
             <p className="text-xs text-[#5D655B] leading-relaxed">
               Every answer is audited against the {materials.length} indexed documents below.
             </p>
 
-            <div className="space-y-2">
-              {materials.map((m) => (
-                <div
-                  key={m.id}
-                  className="p-3 rounded-lg bg-[#F8F7EF] border border-[#E1E4D8] space-y-1 text-xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-semibold text-[#17241B] truncate">{m.title}</span>
-                    <span className="capitalize font-mono-code text-[10px] text-[#697650] bg-white px-1.5 py-0.5 rounded border border-[#E1E4D8] shrink-0">
-                      {m.type}
-                    </span>
+            {materials.length === 0 ? (
+              <div className="p-4 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] text-center text-xs text-[#5D655B]">
+                No documents uploaded yet. Upload course materials to enable verified citations.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {materials.map((m) => (
+                  <div
+                    key={m.id}
+                    className="p-3 rounded-lg bg-[#F8F7EF] border border-[#E1E4D8] space-y-1 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-[#17241B] truncate">{m.title}</span>
+                      <span className="capitalize font-mono-code text-[10px] text-[#697650] bg-white px-1.5 py-0.5 rounded border border-[#E1E4D8] shrink-0">
+                        {m.type}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#5D655B] line-clamp-2">{m.description || m.summary}</p>
                   </div>
-                  <p className="text-[11px] text-[#5D655B] line-clamp-2">{m.description}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

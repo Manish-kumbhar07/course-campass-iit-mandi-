@@ -38,26 +38,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const totalSteps = 5;
 
   // Form states
-  const [courseName, setCourseName] = useState('Data Structures: Recursion and Graphs');
-  const [subject, setSubject] = useState('Computer Science');
-  const [code, setCode] = useState('CS 204');
-  const [academicLevel, setAcademicLevel] = useState('Second-year Undergraduate');
-  const [examDate, setExamDate] = useState('October 25, 2026');
+  const [courseName, setCourseName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [code, setCode] = useState('');
+  const [academicLevel, setAcademicLevel] = useState('Undergraduate');
+  const [examDate, setExamDate] = useState('');
   const [dailyMinutes, setDailyMinutes] = useState(45);
   const [language, setLanguage] = useState('English');
-  const [difficulties, setDifficulties] = useState<string[]>([
-    'Recursion base case termination conditions',
-    'Graph traversal prerequisites (Call stack vs. Queue mechanics)'
-  ]);
+  const [difficulties, setDifficulties] = useState<string[]>([]);
   const [takeDiagnostic, setTakeDiagnostic] = useState(true);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const availableDifficulties = [
-    'Recursion base case termination conditions',
-    'Graph traversal prerequisites (Call stack vs. Queue mechanics)',
-    'Cycle detection in directed graphs (Three-coloring)',
-    'Topological Sorting & Kahn Algorithm',
-    'Binary Search Tree balancing & rotations',
-    'Dynamic Programming memoization tables'
+    'Foundational concepts and definitions',
+    'Mathematical representations and formulas',
+    'Step-by-step problem solving & algorithms',
+    'Analyzing diagrams, charts, and system representations',
+    'Identifying exam traps and common misconceptions',
+    'Synthesizing multiple topics for revision'
   ];
 
   const toggleDifficulty = (item: string) => {
@@ -69,14 +67,33 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   };
 
   const handleNext = () => {
+    setValidationError(null);
+
+    // Validate step 1
+    if (currentStep === 1) {
+      if (!courseName.trim()) {
+        setValidationError('Please enter a course title.');
+        return;
+      }
+      if (!subject.trim()) {
+        setValidationError('Please enter an academic subject.');
+        return;
+      }
+      if (!code.trim()) {
+        // Auto-generate code from subject and initials if empty
+        const generatedCode = subject.substring(0, 3).toUpperCase() + ' 101';
+        setCode(generatedCode);
+      }
+    }
+
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
       onComplete({
-        courseName,
-        subject,
-        code,
-        examDate,
+        courseName: courseName.trim() || 'General Course',
+        subject: subject.trim() || 'General Studies',
+        code: code.trim() || 'GEN 101',
+        examDate: examDate.trim() || 'Upcoming Exam',
         dailyMinutes,
         language,
         difficulties,
@@ -124,6 +141,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   Tell us about the upcoming course or examination you need to prepare for.
                 </p>
               </div>
+
+              {validationError && (
+                <div className="p-3 rounded-lg bg-[#FFF8F8] border border-[#F8E2E3] text-[#D71935] text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{validationError}</span>
+                </div>
+              )}
 
               <div className="space-y-4 text-xs">
                 <div>

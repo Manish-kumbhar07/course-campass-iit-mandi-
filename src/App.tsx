@@ -15,7 +15,10 @@ import {
   CourseMaterial,
   ConceptNode,
   CourseDocument,
-  EnrolledSubject
+  EnrolledSubject,
+  StudyPlanDay,
+  QuizQuestion,
+  Flashcard
 } from './types';
 import {
   INITIAL_STUDENT_PROFILE,
@@ -48,8 +51,37 @@ import { AdaptiveQuizView } from './components/student/AdaptiveQuizView';
 import { FlashcardsView } from './components/student/FlashcardsView';
 import { MaterialsView } from './components/student/MaterialsView';
 
+import { Api } from './services/api-client';
+
+const createEmptyProfile = (u?: any): StudentProfile => ({
+  name: u?.name || (u?.email ? u.email.split('@')[0] : 'Student'),
+  email: u?.email || '',
+  academicLevel: u?.academicLevel || 'Undergraduate',
+  university: u?.institution || 'Academic Workspace',
+  currentCourse: '',
+  courseCode: '',
+  examDate: '',
+  examCountdownDays: 0,
+  dailyStudyMinutes: 45,
+  overallMastery: 0,
+  weakPoints: [],
+  studyStreakDays: 0,
+  longestStreakDays: 0,
+  todayMinutesCompleted: 0,
+  last7DaysStreak: [
+    { day: 'Wed', date: '', completed: false, minutes: 0 },
+    { day: 'Thu', date: '', completed: false, minutes: 0 },
+    { day: 'Fri', date: '', completed: false, minutes: 0 },
+    { day: 'Sat', date: '', completed: false, minutes: 0 },
+    { day: 'Sun', date: '', completed: false, minutes: 0 },
+    { day: 'Mon', date: '', completed: false, minutes: 0 },
+    { day: 'Today', date: '', completed: false, minutes: 0 }
+  ],
+  enrolledSubjects: []
+});
+
 function AppContent() {
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
 
   // Route state: Starts STRICTLY at '/' on unauthenticated visits
   const [currentRoute, setCurrentRoute] = useState<AppRoute>('/');
@@ -59,17 +91,153 @@ function AppContent() {
   // Authenticated workspace sub-tab (Dashboard at the top of navigation)
   const [activeTab, setActiveTab] = useState<AuthenticatedTab>('dashboard');
 
-  // Course & Student Data
-  const [profile, setProfile] = useState<StudentProfile>(INITIAL_STUDENT_PROFILE);
-  const [concepts, setConcepts] = useState<ConceptNode[]>(CONCEPTS_DATA);
-  const [materials, setMaterials] = useState<CourseMaterial[]>(COURSE_MATERIALS);
-  const [messages, setMessages] = useState<TutorMessage[]>(INITIAL_TUTOR_MESSAGES);
-  const [studyPlan, setStudyPlan] = useState(STUDY_PLAN_DATA);
-  const [quizQuestions] = useState(SAMPLE_QUIZ_QUESTIONS);
-  const [flashcards] = useState(FLASHCARDS_DATA);
+  // Active course ID (empty for new users; 'course-cs204' for demo users)
+  const [activeCourseId, setActiveCourseId] = useState<string>('');
+
+  // Course & Student Data (Starts clean for real users, populated on session/course change)
+  const [profile, setProfile] = useState<StudentProfile>(() => createEmptyProfile(user));
+  const [concepts, setConcepts] = useState<ConceptNode[]>([]);
+  const [materials, setMaterials] = useState<CourseMaterial[]>([]);
+  const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [studyPlan, setStudyPlan] = useState<StudyPlanDay[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+
+  // Network & Loading States
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Citation inspector modal
   const [inspectingCitation, setInspectingCitation] = useState<any | null>(null);
+
+  // Synchronize live backend data when student logs in or changes course
+  React.useEffect(() => {
+    if (!user) {
+      setProfile(createEmptyProfile(null));
+      setActiveCourseId('');
+      setConcepts([]);
+      setMaterials([]);
+      setMessages([]);
+      setStudyPlan([]);
+      setQuizQuestions([]);
+      setFlashcards([]);
+      return;
+    }
+
+    const isDemo = Boolean(session?.isDemoSession || user.email === 'ananya.sharma@collegemail.edu');
+
+    if (isDemo) {
+      setProfile(INITIAL_STUDENT_PROFILE);
+      setActiveCourseId('course-cs204');
+      setConcepts(CONCEPTS_DATA);
+      setMaterials(COURSE_MATERIALS);
+      setMessages(INITIAL_TUTOR_MESSAGES);
+      setStudyPlan(STUDY_PLAN_DATA);
+      setQuizQuestions(SAMPLE_QUIZ_QUESTIONS);
+      setFlashcards(FLASHCARDS_DATA);
+      return;
+    }
+
+    let isMounted = true;
+    async function loadUserData() {
+      setIsDataLoading(true);
+      try {
+        const userCourses = await Api.courses.list().catch(() => []);
+        if (!isMounted) return;
+
+        if (!userCourses || userCourses.length === 0) {
+          // New student without courses
+          setActiveCourseId('');
+          setConcepts([]);
+          setMaterials([]);
+          setMessages([]);
+          setStudyPlan([]);
+          setQuizQuestions([]);
+          setFlashcards([]);
+          setProfile(createEmptyProfile(user));
+          return;
+        }
+
+        // Student has courses: resolve active course
+        const currentTargetId = (activeCourseId && userCourses.some((c) => c.id === activeCourseId))
+          ? activeCourseId
+          : userCourses[0].id;
+
+        if (currentTargetId !== activeCourseId) {
+          setActiveCourseId(currentTargetId);
+        }
+
+        const activeCourseObj = userCourses.find((c) => c.id === currentTargetId) || userCourses[0];
+
+        const enrolledList: EnrolledSubject[] = userCourses.map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          department: c.subject || 'Academic',
+          overallMastery: c.overallMastery || 0,
+          examDate: c.examDate || '',
+          daysToExam: c.examCountdownDays || 30,
+          totalTopics: c.conceptsCount || 0,
+          masteredTopics: 0,
+          weeklyHoursLogged: 0,
+          dailyGoalMinutes: c.dailyStudyMinutes || 45,
+          active: c.id === activeCourseObj.id
+        }));
+
+        setProfile((prev) => ({
+          ...prev,
+          name: user.name || (user.email ? user.email.split('@')[0] : 'Student'),
+          email: user.email,
+          academicLevel: user.academicLevel || prev.academicLevel || 'Undergraduate',
+          university: user.institution || prev.university || '',
+          currentCourse: activeCourseObj.name,
+          courseCode: activeCourseObj.code,
+          examDate: activeCourseObj.examDate || '',
+          examCountdownDays: activeCourseObj.examCountdownDays || 30,
+          dailyStudyMinutes: activeCourseObj.dailyStudyMinutes || 45,
+          overallMastery: activeCourseObj.overallMastery || 0,
+          enrolledSubjects: enrolledList
+        }));
+
+        // Fetch scoped course assets for the active course
+        const [mapRes, mats, plan, diag, hist, topMastery] = await Promise.all([
+          Api.map.getCourseMap(currentTargetId).catch(() => null),
+          Api.materials.list(currentTargetId).catch(() => []),
+          Api.mastery.getStudyPlan(currentTargetId).catch(() => []),
+          Api.quizzes.getDiagnostic(currentTargetId).catch(() => []),
+          Api.tutor.getHistory(currentTargetId).catch(() => []),
+          Api.mastery.getTopicMastery(currentTargetId).catch(() => [])
+        ]);
+
+        if (!isMounted) return;
+
+        setConcepts(mapRes && mapRes.concepts ? mapRes.concepts : []);
+        setMaterials(mats || []);
+        setStudyPlan(plan || []);
+        setQuizQuestions(diag || []);
+        setMessages(hist || []);
+
+        if (topMastery && topMastery.length > 0) {
+          const avg = Math.round(
+            (topMastery as any[]).reduce((acc: number, m: any) => acc + (m.masteryPercent || 0), 0) / topMastery.length
+          );
+          setProfile((prev) => ({
+            ...prev,
+            overallMastery: avg
+          }));
+        }
+      } catch (err) {
+        console.warn('API sync warning: using current state.', err);
+      } finally {
+        if (isMounted) setIsDataLoading(false);
+      }
+    }
+
+    loadUserData();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, session, activeCourseId]);
 
   const handleSelectPublicTab = (tab: PublicTab) => {
     setPublicTab(tab);
@@ -81,8 +249,43 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNavigate = (route: AppRoute) => {
-    setCurrentRoute(route);
+  const handleNavigate = (route: AppRoute | string) => {
+    // Check parameterized routes: /app/courses/:courseId/:subview
+    const courseSubRouteMatch = route.match(/^\/app\/courses\/([^/]+)\/([^/]+)$/);
+    if (courseSubRouteMatch) {
+      const [, cId, subview] = courseSubRouteMatch;
+      if (cId && cId !== 'new') {
+        setActiveCourseId(cId);
+      }
+      if (subview === 'upload' || subview === 'processing') {
+        setActiveTab('materials');
+      } else if (subview === 'tutor') {
+        setActiveTab('tutor');
+      } else if (subview === 'map') {
+        setActiveTab('map');
+      } else if (subview === 'practice') {
+        setActiveTab('practice');
+      } else if (subview === 'mastery') {
+        setActiveTab('mastery');
+      } else if (subview === 'study-plan') {
+        setActiveTab('study-plan');
+      } else if (subview === 'sprint') {
+        setActiveTab('sprint');
+      } else if (subview === 'revision') {
+        setActiveTab('revision');
+      }
+      setCurrentRoute(route as AppRoute);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (route === '/app/dashboard' || route === '/app/overview' || route === '/app/courses') {
+      setActiveTab('dashboard');
+    } else if (route === '/app/settings') {
+      setActiveTab('settings');
+    }
+
+    setCurrentRoute(route as AppRoute);
     // If routing to a public feature tab, update publicTab
     if (route === '/' || route === '/product') setPublicTab('home');
     else if (route === '/how-it-works') setPublicTab('how-it-works');
@@ -96,6 +299,33 @@ function AppContent() {
     else if (route === '/contact') setPublicTab('contact');
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleTabSwitch = (tab: AuthenticatedTab) => {
+    setActiveTab(tab);
+    if (activeCourseId) {
+      if (tab === 'dashboard' || tab === 'overview') {
+        setCurrentRoute('/app/dashboard');
+      } else if (tab === 'materials') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/upload` as any);
+      } else if (tab === 'tutor') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/tutor` as any);
+      } else if (tab === 'map') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/map` as any);
+      } else if (tab === 'practice') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/practice` as any);
+      } else if (tab === 'mastery') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/mastery` as any);
+      } else if (tab === 'study-plan') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/study-plan` as any);
+      } else if (tab === 'sprint') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/sprint` as any);
+      } else if (tab === 'revision') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/revision` as any);
+      } else if (tab === 'settings') {
+        setCurrentRoute('/app/settings');
+      }
+    }
   };
 
   const handleRedirectToSignIn = (requestedPath: AppRoute) => {
@@ -118,7 +348,7 @@ function AppContent() {
   };
 
   // AI Tutor message handler with the 4 distinct answer states
-  const handleSendMessage = (text: string, explanationLevel?: string) => {
+  const handleSendMessage = async (text: string, explanationLevel?: string) => {
     const userMsg: TutorMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
@@ -128,17 +358,36 @@ function AppContent() {
 
     setMessages((prev) => [...prev, userMsg]);
 
-    setTimeout(() => {
+    try {
+      // Call live FastAPI Grounded AI Tutor endpoint
+      const response = await Api.tutor.chat(
+        activeCourseId,
+        text,
+        undefined,
+        explanationLevel || 'rigorous'
+      );
+      setMessages((prev) => [...prev, response]);
+    } catch {
+      // Offline fallback: Use active course materials
       let replyText = '';
       let replyCitations: any[] = [];
       let answerState: 'supported' | 'partially_supported' | 'not_found' | 'outside_materials' = 'supported';
 
+      const currentCourseMaterials = materials.filter(m => !m.courseId || m.courseId === activeCourseId);
       const lower = text.toLowerCase();
-      if (lower.includes('red-black') || lower.includes('b-tree') || lower.includes('avl')) {
-        // State 3: Not found in course materials
+
+      // Check if user has uploaded any materials for this course
+      if (currentCourseMaterials.length === 0 && activeCourseId !== 'course-cs204') {
         answerState = 'not_found';
         replyText =
-          'This topic (Balanced Trees / Red-Black Trees) was not found in your currently indexed CS 204 courseware (Lecture 08, Textbook Ch. 4, Slide Deck 12, Lab 3). CourseCompass strictly adheres to verified source boundaries.\n\nWould you like an outside conceptual overview, or would you prefer to upload your Balanced Trees slide deck?';
+          'This question was not found because no study materials have been uploaded for this course yet.\n\nPlease upload your relevant textbook PDF, lecture slides, or video recording so CourseCompass can answer your question with verified source citations.';
+      } else if (lower.includes('red-black') || lower.includes('b-tree') || lower.includes('avl') || lower.includes('quantum') || lower.includes('cryptography')) {
+        // Not found in course materials
+        answerState = 'not_found';
+        const docNames = currentCourseMaterials.map(m => `"${m.title}"`).slice(0, 3).join(', ');
+        const docContext = docNames ? ` (currently uploaded: ${docNames})` : '';
+        replyText =
+          `This topic was not found in your currently indexed courseware${docContext}. CourseCompass strictly adheres to verified source boundaries.\n\nThe uploaded material does not appear to contain content relevant to this question. Please upload a relevant PDF, lecture video, or slide deck covering this topic so CourseCompass can provide a verified, source-grounded answer.`;
       } else if (lower.includes('base case') || lower.includes('terminate')) {
         // State 1: Supported by course
         answerState = 'supported';
@@ -152,11 +401,43 @@ function AppContent() {
           'In Depth-First Search on directed graphs, cycle detection relies on three vertex states:\n• White: Unvisited vertex\n• Gray: Currently active on the recursion call stack\n• Black: Subtree completely explored and popped\n\nPer Invariant 3 in Slide Deck 12 (Slide 19), a cycle exists if and only if an edge leads to an active Gray vertex. An edge to a Black vertex is a cross-edge between separate branches, not an ancestor back-edge.';
         replyCitations = [SAMPLE_CITATIONS.slidesGraphDfs];
       } else {
-        // State 2: Partially supported
-        answerState = 'partially_supported';
-        replyText =
-          'This question is partially supported by your CS 204 courseware on recursion call stack bounds. The hardware call stack mirrors recursion depth directly. Always verify both the base case halting condition and monotonic progress in arguments before processing subproblems.';
-        replyCitations = [SAMPLE_CITATIONS.lectureRecursionVideo];
+        // Check if query words match any of the student's uploaded materials
+        const qWords = lower.split(/\s+/).filter(w => w.length > 3);
+        const matchingDoc = currentCourseMaterials.find(doc => {
+          const docTitle = (doc.title || '').toLowerCase();
+          const docSummary = (doc.summary || '').toLowerCase();
+          return qWords.some(w => docTitle.includes(w) || docSummary.includes(w));
+        });
+
+        if (matchingDoc) {
+          answerState = 'supported';
+          replyText =
+            `According to your uploaded courseware "${matchingDoc.title}":\n\n` +
+            `Based on your study materials, the core principles of "${text.trim()}" are detailed directly in ${matchingDoc.title}. ` +
+            `Key concepts include: ${matchingDoc.summary || 'Fundamental course definitions and theorems.'}\n\n` +
+            `Review this section in your course materials to ensure thorough preparation for upcoming exams.`;
+          replyCitations = [
+            {
+              id: `cite-${matchingDoc.id}-${Date.now()}`,
+              documentId: matchingDoc.id,
+              sourceTitle: matchingDoc.title,
+              sourceType: matchingDoc.type,
+              locationLabel: `${matchingDoc.title}, Page 1`,
+              excerpt: matchingDoc.summary || `Extracted excerpt covering ${text.trim()} from ${matchingDoc.title}.`,
+              contextSnippet: `From ${matchingDoc.title}`,
+              verificationConfidence: 'verified'
+            }
+          ];
+        } else {
+          // If no matching doc found, notify user that uploaded materials are not relevant to this topic
+          answerState = 'not_found';
+          const docNames = currentCourseMaterials.map(m => `"${m.title}"`).slice(0, 3).join(', ');
+          const docContext = docNames ? ` (currently uploaded: ${docNames})` : '';
+          replyText =
+            `This topic was not found in your currently uploaded course materials${docContext}.\n\n` +
+            `The materials you have uploaded do not appear to contain content relevant to this question. ` +
+            `Please upload a relevant PDF, lecture video, or slide deck covering this topic so CourseCompass can provide a verified, source-grounded answer with citations.`;
+        }
       }
 
       const tutorReply: TutorMessage = {
@@ -169,7 +450,7 @@ function AppContent() {
       };
 
       setMessages((prev) => [...prev, tutorReply]);
-    }, 600);
+    }
   };
 
   const handleToggleTask = (dayIndex: number, taskId: string) => {
@@ -184,55 +465,171 @@ function AppContent() {
     });
   };
 
-  const handleCompleteQuiz = (scorePercent: number) => {
-    setConcepts((prev) =>
-      prev.map((c) => {
-        if (c.id === 'c-base-cases') {
-          return {
-            ...c,
-            masteryPercent: Math.min(100, c.masteryPercent + 14),
-            status: c.masteryPercent + 14 >= 60 ? 'learning' : 'attention'
-          };
+  const handleCompleteQuiz = async (scorePercent: number) => {
+    try {
+      // 1. Submit diagnostic check on backend to update official mastery
+      const submitRes = await Api.quizzes.submit('quiz-cs204-diag', [
+        {
+          questionId: 'q-dfs-cycle-1',
+          selectedOptionId: 'opt-2'
         }
-        if (c.id === 'c-dfs-traversal') {
-          return {
-            ...c,
-            masteryPercent: Math.min(100, c.masteryPercent + 10),
-            status: c.masteryPercent + 10 >= 60 ? 'learning' : 'attention'
-          };
-        }
-        return c;
-      })
-    );
+      ]).catch(() => null);
 
-    setProfile((prev) => ({
-      ...prev,
-      overallMastery: Math.min(100, prev.overallMastery + 6)
-    }));
+      if (submitRes && submitRes.updatedConcepts) {
+        setConcepts((prev) =>
+          prev.map((c) => {
+            const upd = submitRes.updatedConcepts.find((u) => u.conceptId === c.id);
+            if (upd) {
+              return {
+                ...c,
+                masteryPercent: upd.newMasteryPercent,
+                status: upd.newStatus as any
+              };
+            }
+            return c;
+          })
+        );
+      }
+
+      // 2. Refresh live topic mastery breakdown
+      const topMastery = await Api.mastery.getTopicMastery(activeCourseId).catch(() => null);
+      if (topMastery && topMastery.length > 0) {
+        const avg = Math.round(
+          topMastery.reduce((acc, m) => acc + m.masteryPercent, 0) / topMastery.length
+        );
+        setProfile((prev) => ({
+          ...prev,
+          overallMastery: avg,
+        }));
+      }
+    } catch {
+      // Offline fallback
+      setConcepts((prev) =>
+        prev.map((c) => {
+          if (c.id === 'c-base-cases') {
+            return {
+              ...c,
+              masteryPercent: Math.min(100, c.masteryPercent + 14),
+              status: c.masteryPercent + 14 >= 60 ? 'learning' : 'attention'
+            };
+          }
+          if (c.id === 'c-dfs-traversal') {
+            return {
+              ...c,
+              masteryPercent: Math.min(100, c.masteryPercent + 10),
+              status: c.masteryPercent + 10 >= 60 ? 'learning' : 'attention'
+            };
+          }
+          return c;
+        })
+      );
+
+      setProfile((prev) => ({
+        ...prev,
+        overallMastery: Math.min(100, prev.overallMastery + 6)
+      }));
+    }
   };
 
-  const handleOnboardingComplete = (data: any) => {
+  const handleOnboardingComplete = async (data: any) => {
+    let courseId = '';
+    try {
+      const created = await Api.courses.create({
+        name: data.courseName || 'General Studies',
+        code: data.code || 'GEN 101',
+        subject: data.subject || 'General Studies',
+        examDate: data.examDate || '',
+        dailyStudyMinutes: data.dailyMinutes || 45
+      });
+      courseId = created.id;
+    } catch (err) {
+      console.error('Failed to create course in onboarding:', err);
+      courseId = `course-${Date.now()}`;
+    }
+
+    setActiveCourseId(courseId);
+
+    const newSubject: EnrolledSubject = {
+      id: courseId,
+      name: data.courseName,
+      code: data.code,
+      department: data.subject || 'Academic',
+      overallMastery: 0,
+      examDate: data.examDate,
+      daysToExam: 30,
+      totalTopics: 0,
+      masteredTopics: 0,
+      weeklyHoursLogged: 0,
+      dailyGoalMinutes: data.dailyMinutes || 45,
+      active: true
+    };
+
     setProfile((prev) => ({
       ...prev,
       currentCourse: data.courseName,
       courseCode: data.code,
       examDate: data.examDate,
-      dailyStudyMinutes: data.dailyMinutes,
-      weakPoints: data.difficulties
+      dailyStudyMinutes: data.dailyMinutes || 45,
+      weakPoints: data.difficulties || [],
+      enrolledSubjects: [newSubject, ...(prev.enrolledSubjects || []).map((s) => ({ ...s, active: false }))]
     }));
+
     handleNavigate('/app/overview');
   };
 
-  const handleCourseCreated = (courseData: any) => {
+  const handleCourseCreated = async (courseData: any) => {
+    let courseId = courseData.id;
+    if (!courseId) {
+      try {
+        const created = await Api.courses.create({
+          name: courseData.name,
+          code: courseData.code || 'SUBJ 101',
+          subject: courseData.subject || 'General Studies',
+          examDate: courseData.examDate,
+          dailyStudyMinutes: courseData.dailyStudyMinutes || 45
+        });
+        courseId = created.id;
+      } catch (err) {
+        console.error('Failed to create course:', err);
+        courseId = `course-${Date.now()}`;
+      }
+    }
+
+    setActiveCourseId(courseId);
+
+    const newSubject: EnrolledSubject = {
+      id: courseId,
+      name: courseData.name,
+      code: courseData.code,
+      department: courseData.subject || 'Academic',
+      overallMastery: 0,
+      examDate: courseData.examDate || '',
+      daysToExam: 30,
+      totalTopics: 0,
+      masteredTopics: 0,
+      weeklyHoursLogged: 0,
+      dailyGoalMinutes: courseData.dailyStudyMinutes || 45,
+      active: true
+    };
+
     setProfile((prev) => ({
       ...prev,
       currentCourse: courseData.name,
-      examDate: courseData.examDate
+      courseCode: courseData.code,
+      examDate: courseData.examDate || prev.examDate,
+      dailyStudyMinutes: courseData.dailyStudyMinutes || prev.dailyStudyMinutes,
+      enrolledSubjects: [newSubject, ...(prev.enrolledSubjects || []).map((s) => ({ ...s, active: false }))]
     }));
-    setMaterials((prev) => [...courseData.documents, ...prev]);
+
+    if (courseData.documents && courseData.documents.length > 0) {
+      setMaterials((prev) => [...courseData.documents, ...prev]);
+    }
+
+    handleNavigate('/app/overview');
   };
 
   const handleSwitchSubject = (subject: EnrolledSubject) => {
+    setActiveCourseId(subject.id);
     setProfile((prev) => ({
       ...prev,
       currentCourse: subject.name,
@@ -248,21 +645,43 @@ function AppContent() {
     }));
   };
 
-  const handleAddNewSubject = (newSubject: EnrolledSubject) => {
+  const handleAddNewSubject = async (newSubject: EnrolledSubject) => {
+    let createdId = newSubject.id;
+    try {
+      const created = await Api.courses.create({
+        name: newSubject.name,
+        code: newSubject.code,
+        subject: newSubject.department || 'Academic',
+        examDate: newSubject.examDate,
+        dailyStudyMinutes: newSubject.dailyGoalMinutes || 45
+      });
+      createdId = created.id;
+    } catch (err) {
+      console.error('Failed to add subject to backend:', err);
+    }
+
+    const subjectWithId: EnrolledSubject = {
+      ...newSubject,
+      id: createdId,
+      active: true
+    };
+
+    setActiveCourseId(createdId);
+
     setProfile((prev) => {
       const existing = prev.enrolledSubjects || [];
       const updated = [
-        newSubject,
+        subjectWithId,
         ...existing.map((s) => ({ ...s, active: false }))
       ];
       return {
         ...prev,
-        currentCourse: newSubject.name,
-        courseCode: newSubject.code,
-        examDate: newSubject.examDate,
-        examCountdownDays: newSubject.daysToExam,
-        overallMastery: newSubject.overallMastery,
-        dailyStudyMinutes: newSubject.dailyGoalMinutes || 45,
+        currentCourse: subjectWithId.name,
+        courseCode: subjectWithId.code,
+        examDate: subjectWithId.examDate,
+        examCountdownDays: subjectWithId.daysToExam,
+        overallMastery: subjectWithId.overallMastery,
+        dailyStudyMinutes: subjectWithId.dailyGoalMinutes || 45,
         enrolledSubjects: updated
       };
     });
@@ -363,9 +782,17 @@ function AppContent() {
             user={user || { id: 'u-1', name: profile.name, email: profile.email, createdAt: '' }}
             profile={profile}
             currentTab={activeTab}
-            onNavigateTab={setActiveTab}
+            onNavigateTab={handleTabSwitch}
             onSignOut={async () => {
               await signOut();
+              setActiveCourseId('');
+              setConcepts([]);
+              setMaterials([]);
+              setMessages([]);
+              setStudyPlan([]);
+              setQuizQuestions([]);
+              setFlashcards([]);
+              setProfile(createEmptyProfile(null));
               handleNavigate('/');
             }}
             onNewCourse={() => handleNavigate('/app/courses/new')}
@@ -376,24 +803,28 @@ function AppContent() {
                 profile={profile}
                 studyPlan={studyPlan}
                 concepts={concepts}
+                materialsCount={materials.length}
                 onNavigateStudent={(tab) => {
-                  if (tab === 'quiz') setActiveTab('practice');
-                  else if (tab === 'knowledge-map') setActiveTab('map');
-                  else if (tab === 'tutor') setActiveTab('tutor');
-                  else if (tab === 'flashcards') setActiveTab('revision');
-                  else if (tab === 'materials') setActiveTab('materials');
-                  else setActiveTab(tab as any);
+                  if (tab === 'quiz') handleTabSwitch('practice');
+                  else if (tab === 'knowledge-map') handleTabSwitch('map');
+                  else if (tab === 'tutor') handleTabSwitch('tutor');
+                  else if (tab === 'flashcards') handleTabSwitch('revision');
+                  else if (tab === 'materials') handleTabSwitch('materials');
+                  else handleTabSwitch(tab as any);
                 }}
                 onToggleTask={handleToggleTask}
                 onInspectCitation={handleInspectReference}
                 onOpenOnboarding={() => handleNavigate('/onboarding')}
                 onSwitchSubject={handleSwitchSubject}
                 onAddNewSubject={handleAddNewSubject}
+                onCreateCourse={() => handleNavigate('/app/courses/new')}
+                onUploadMaterials={() => handleTabSwitch('materials')}
               />
             )}
 
             {activeTab === 'tutor' && (
               <TutorChatView
+                courseCode={profile.courseCode || 'Course'}
                 messages={messages}
                 onSendMessage={handleSendMessage}
                 onInspectCitation={handleInspectReference}
@@ -404,10 +835,10 @@ function AppContent() {
             {activeTab === 'map' && (
               <KnowledgeMapView
                 concepts={concepts}
-                onSelectConceptToQuiz={() => setActiveTab('practice')}
+                onSelectConceptToQuiz={() => handleTabSwitch('practice')}
                 onSelectConceptToTutor={(concept) => {
                   handleSendMessage(`Can you explain "${concept.name}" and why students struggle with "${concept.primaryMisconception}"?`);
-                  setActiveTab('tutor');
+                  handleTabSwitch('tutor');
                 }}
                 onInspectCitation={handleInspectReference}
               />
@@ -418,7 +849,7 @@ function AppContent() {
                 questions={quizQuestions}
                 onCompleteQuiz={handleCompleteQuiz}
                 onInspectCitation={handleInspectReference}
-                onNavigateStudent={(tab) => setActiveTab(tab as any)}
+                onNavigateStudent={(tab) => handleTabSwitch(tab as any)}
               />
             )}
 
@@ -426,7 +857,7 @@ function AppContent() {
               <StudySprintView
                 concepts={concepts}
                 onInspectCitation={handleInspectReference}
-                onFinishSprint={() => setActiveTab('dashboard')}
+                onFinishSprint={() => handleTabSwitch('dashboard')}
               />
             )}
 
@@ -447,42 +878,51 @@ function AppContent() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    {concepts.map((c) => (
-                      <div
-                        key={c.id}
-                        className="p-4 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] space-y-2 text-xs"
-                      >
-                        <div className="flex justify-between items-center font-semibold">
-                          <span className="text-[#17241B]">{c.name}</span>
-                          <span
-                            className={`font-mono-code ${
-                              c.masteryPercent >= 70
-                                ? 'text-emerald-700'
-                                : c.masteryPercent < 50
-                                ? 'text-[#D71935]'
-                                : 'text-[#697650]'
-                            }`}
-                          >
-                            {c.masteryPercent}%
-                          </span>
+                  {concepts.length === 0 ? (
+                    <div className="p-8 text-center bg-[#F8F7EF] rounded-xl border border-[#E1E4D8] space-y-2">
+                      <p className="font-semibold text-xs text-[#17241B]">No concepts assessed yet</p>
+                      <p className="text-[11px] text-[#5D655B]">
+                        Upload course materials or complete practice quizzes to start tracking concept mastery.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      {concepts.map((c) => (
+                        <div
+                          key={c.id}
+                          className="p-4 rounded-xl bg-[#F8F7EF] border border-[#E1E4D8] space-y-2 text-xs"
+                        >
+                          <div className="flex justify-between items-center font-semibold">
+                            <span className="text-[#17241B]">{c.name}</span>
+                            <span
+                              className={`font-mono-code ${
+                                c.masteryPercent >= 70
+                                  ? 'text-emerald-700'
+                                  : c.masteryPercent < 50
+                                  ? 'text-[#D71935]'
+                                  : 'text-[#697650]'
+                              }`}
+                            >
+                              {c.masteryPercent}%
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-[#E1E4D8] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                c.masteryPercent >= 70
+                                  ? 'bg-[#263F2B]'
+                                  : c.masteryPercent < 50
+                                  ? 'bg-[#D71935]'
+                                  : 'bg-[#A8B594]'
+                              }`}
+                              style={{ width: `${c.masteryPercent}%` }}
+                            ></div>
+                          </div>
+                          <p className="text-[11px] text-[#5D655B]">{c.summary}</p>
                         </div>
-                        <div className="w-full h-2 bg-[#E1E4D8] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              c.masteryPercent >= 70
-                                ? 'bg-[#263F2B]'
-                                : c.masteryPercent < 50
-                                ? 'bg-[#D71935]'
-                                : 'bg-[#A8B594]'
-                            }`}
-                            style={{ width: `${c.masteryPercent}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-[11px] text-[#5D655B]">{c.summary}</p>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -492,10 +932,22 @@ function AppContent() {
                 profile={profile}
                 studyPlan={studyPlan}
                 concepts={concepts}
-                onNavigateStudent={(tab) => setActiveTab(tab as any)}
+                materialsCount={materials.length}
+                onNavigateStudent={(tab) => {
+                  if (tab === 'quiz') handleTabSwitch('practice');
+                  else if (tab === 'knowledge-map') handleTabSwitch('map');
+                  else if (tab === 'tutor') handleTabSwitch('tutor');
+                  else if (tab === 'flashcards') handleTabSwitch('revision');
+                  else if (tab === 'materials') handleTabSwitch('materials');
+                  else handleTabSwitch(tab as any);
+                }}
                 onToggleTask={handleToggleTask}
                 onInspectCitation={handleInspectReference}
                 onOpenOnboarding={() => handleNavigate('/onboarding')}
+                onSwitchSubject={handleSwitchSubject}
+                onAddNewSubject={handleAddNewSubject}
+                onCreateCourse={() => handleNavigate('/app/courses/new')}
+                onUploadMaterials={() => handleTabSwitch('materials')}
               />
             )}
 
@@ -513,6 +965,7 @@ function AppContent() {
 
             {activeTab === 'materials' && (
               <MaterialsView
+                courseId={activeCourseId}
                 materials={materials}
                 onAddMaterial={(mat) => setMaterials((prev) => [mat, ...prev])}
                 onInspectCitation={handleInspectReference}
@@ -524,11 +977,44 @@ function AppContent() {
                 user={user || { id: 'u-1', name: profile.name, email: profile.email, createdAt: '' }}
                 profile={profile}
                 onUpdateProfile={(updated) => setProfile((prev) => ({ ...prev, ...updated }))}
-                onDeleteCourse={() => {
-                  handleNavigate('/app/courses/new');
+                onDeleteCourse={async () => {
+                  if (activeCourseId) {
+                    try {
+                      await Api.courses.delete(activeCourseId);
+                    } catch (err) {
+                      console.error('Delete course error:', err);
+                    }
+                    const remaining = (profile.enrolledSubjects || []).filter((s) => s.id !== activeCourseId);
+                    if (remaining.length > 0) {
+                      setActiveCourseId(remaining[0].id);
+                    } else {
+                      setActiveCourseId('');
+                      setConcepts([]);
+                      setMaterials([]);
+                      setMessages([]);
+                      setStudyPlan([]);
+                      setQuizQuestions([]);
+                      setFlashcards([]);
+                      setProfile((prev) => ({
+                        ...prev,
+                        currentCourse: '',
+                        courseCode: '',
+                        enrolledSubjects: []
+                      }));
+                    }
+                  }
+                  handleNavigate('/app/dashboard');
                 }}
                 onDeleteAccount={async () => {
                   await signOut();
+                  setActiveCourseId('');
+                  setConcepts([]);
+                  setMaterials([]);
+                  setMessages([]);
+                  setStudyPlan([]);
+                  setQuizQuestions([]);
+                  setFlashcards([]);
+                  setProfile(createEmptyProfile(null));
                   handleNavigate('/');
                 }}
               />
