@@ -103,3 +103,9 @@ docker compose -f docker-compose.prod.yml logs -f backend worker
 - **Recovery Time Objective (RTO)**: $\le 30$ minutes.
 - **Recovery Point Objective (RPO)**: $\le 5$ minutes.
 
+---
+
+## 9. Vercel Cloud Multi-Service Deployment
+- **Live Production URL**: [https://course-campass-iit-mandi-nine.vercel.app/](https://course-campass-iit-mandi-nine.vercel.app/)
+- **Configuration**: Managed via `vercel.json` with service separation (`app` for Vite frontend, `backend` for FastAPI Python ASGI runtime) and `/api/(.*)` rewrites.
+
