@@ -2,15 +2,15 @@
 
 > **Turn scattered study material into your clearest path forward.**
 
-[![Live Deployment](https://img.shields.io/badge/Live%20Demo-Vercel-success?style=for-the-badge&logo=vercel)](https://course-campass-iit-mandi-nine.vercel.app/)
-[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20TypeScript-blue?style=for-the-badge&logo=react)](https://course-campass-iit-mandi-nine.vercel.app/)
-[![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.12-green?style=for-the-badge&logo=fastapi)](https://course-campass-iit-mandi-nine.vercel.app/)
+[![Live Deployment](https://img.shields.io/badge/Live%20Demo-Vercel-success?style=for-the-badge&logo=vercel)](https://course-campass-iit-mandi-woad.vercel.app/)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20TypeScript-blue?style=for-the-badge&logo=react)](https://course-campass-iit-mandi-woad.vercel.app/)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.12-green?style=for-the-badge&logo=fastapi)](https://course-campass-iit-mandi-woad.vercel.app/)
 [![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](#license)
 
 ---
 
 ### 🌐 Live Production URL
-**[https://course-campass-iit-mandi-nine.vercel.app/](https://course-campass-iit-mandi-nine.vercel.app/)**
+**[https://course-campass-iit-mandi-woad.vercel.app/](https://course-campass-iit-mandi-woad.vercel.app/)**
 
 ---
 
@@ -112,6 +112,6 @@ npm run build
 ## 🌐 Production Deployment
 
 The project is configured for one-click deployment on **Vercel** with multi-service routing:
-- **Live URL**: [https://course-campass-iit-mandi-nine.vercel.app/](https://course-campass-iit-mandi-nine.vercel.app/)
+- **Live URL**: [https://course-campass-iit-mandi-woad.vercel.app/](https://course-campass-iit-mandi-woad.vercel.app/)
 - **Configuration**: `vercel.json` maps `/api/(.*)` to the FastAPI backend service and `/(.*)` to the Vite SPA frontend service.
 

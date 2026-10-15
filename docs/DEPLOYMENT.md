@@ -106,6 +106,6 @@ docker compose -f docker-compose.prod.yml logs -f backend worker
 ---
 
 ## 9. Vercel Cloud Multi-Service Deployment
-- **Live Production URL**: [https://course-campass-iit-mandi-nine.vercel.app/](https://course-campass-iit-mandi-nine.vercel.app/)
+- **Live Production URL**: [https://course-campass-iit-mandi-woad.vercel.app/](https://course-campass-iit-mandi-woad.vercel.app/)
 - **Configuration**: Managed via `vercel.json` with service separation (`app` for Vite frontend, `backend` for FastAPI Python ASGI runtime) and `/api/(.*)` rewrites.
 

@@ -1,7 +1,7 @@
 {
   "name": "coursecompass",
   "description": "Turn scattered study material into your clearest path forward. Source-grounded AI tutoring, adaptive quizzes, and prerequisite mastery maps for college students.",
-  "homepage": "https://course-campass-iit-mandi-nine.vercel.app/",
+  "homepage": "https://course-campass-iit-mandi-woad.vercel.app/",
   "private": true,
   "version": "1.0.0",
   "type": "module",
