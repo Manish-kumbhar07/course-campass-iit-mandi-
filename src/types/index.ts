@@ -23,11 +23,13 @@ export type AppRoute =
   | '/app/courses/new'
   | '/app/courses/:courseId'
   | '/app/courses/:courseId/upload'
+  | '/app/courses/:courseId/materials'
   | '/app/courses/:courseId/processing'
   | '/app/courses/:courseId/tutor'
   | '/app/courses/:courseId/map'
   | '/app/courses/:courseId/practice'
   | '/app/courses/:courseId/mastery'
+  | '/app/courses/:courseId/weekly-report'
   | '/app/courses/:courseId/study-plan'
   | '/app/courses/:courseId/sprint'
   | '/app/courses/:courseId/revision'
@@ -47,7 +49,21 @@ export type PublicTab =
   | 'terms'
   | 'contact'
   | 'faq';
-export type StudentTab = 'dashboard' | 'overview' | 'knowledge-map' | 'tutor' | 'quiz' | 'flashcards' | 'materials';
+export type StudentTab =
+  | 'dashboard'
+  | 'overview'
+  | 'materials'
+  | 'tutor'
+  | 'knowledge-map'
+  | 'quiz'
+  | 'practice'
+  | 'flashcards'
+  | 'revision'
+  | 'mastery'
+  | 'weekly-report'
+  | 'settings'
+  | 'help'
+  | 'courses-new';
 
 export interface User {
   id: string;
@@ -83,8 +99,9 @@ export interface Course {
   updatedAt: string;
 }
 
-export type DocumentType = 'pdf' | 'video' | 'slides' | 'audio' | 'image' | 'notes';
+export type DocumentType = 'pdf' | 'video' | 'slides' | 'audio' | 'image' | 'notes' | 'youtube';
 export type MaterialType = DocumentType;
+
 
 export interface CourseDocument {
   id: string;
@@ -105,6 +122,49 @@ export interface CourseDocument {
 }
 
 export type CourseMaterial = CourseDocument;
+
+export interface YouTubeSection {
+  timestamp_seconds: number;
+  timestamp_display: string;
+  heading: string;
+  summary: string;
+  key_points: string[];
+}
+
+export interface YouTubeDefinition {
+  term: string;
+  definition: string;
+  context?: string;
+}
+
+export interface YouTubeConfusingArea {
+  topic: string;
+  common_misconception: string;
+  clarification: string;
+}
+
+export interface YouTubeSuggestedFlashcard {
+  front: string;
+  back: string;
+  tag?: string;
+}
+
+export interface YouTubeSummary {
+  source_id: string;
+  video_id: string;
+  url: string;
+  title: string;
+  channel: string;
+  duration_seconds: number;
+  duration_display: string;
+  overview: string;
+  sections: YouTubeSection[];
+  core_definitions: YouTubeDefinition[];
+  confusing_areas: YouTubeConfusingArea[];
+  suggested_flashcards: YouTubeSuggestedFlashcard[];
+  key_takeaways: string[];
+}
+
 
 export interface ProcessingJob {
   id: string;

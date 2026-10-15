@@ -50,6 +50,7 @@ import { TutorChatView } from './components/student/TutorChatView';
 import { AdaptiveQuizView } from './components/student/AdaptiveQuizView';
 import { FlashcardsView } from './components/student/FlashcardsView';
 import { MaterialsView } from './components/student/MaterialsView';
+import { WeeklyReportView } from './components/student/WeeklyReportView';
 
 import { Api } from './services/api-client';
 
@@ -273,6 +274,8 @@ function AppContent() {
         setActiveTab('sprint');
       } else if (subview === 'revision') {
         setActiveTab('revision');
+      } else if (subview === 'weekly-report') {
+        setActiveTab('weekly-report');
       }
       setCurrentRoute(route as AppRoute);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -322,6 +325,8 @@ function AppContent() {
         setCurrentRoute(`/app/courses/${activeCourseId}/sprint` as any);
       } else if (tab === 'revision') {
         setCurrentRoute(`/app/courses/${activeCourseId}/revision` as any);
+      } else if (tab === 'weekly-report') {
+        setCurrentRoute(`/app/courses/${activeCourseId}/weekly-report` as any);
       } else if (tab === 'settings') {
         setCurrentRoute('/app/settings');
       }
@@ -810,6 +815,7 @@ function AppContent() {
                   else if (tab === 'tutor') handleTabSwitch('tutor');
                   else if (tab === 'flashcards') handleTabSwitch('revision');
                   else if (tab === 'materials') handleTabSwitch('materials');
+                  else if (tab === 'weekly-report') handleTabSwitch('weekly-report');
                   else handleTabSwitch(tab as any);
                 }}
                 onToggleTask={handleToggleTask}
@@ -969,6 +975,29 @@ function AppContent() {
                 materials={materials}
                 onAddMaterial={(mat) => setMaterials((prev) => [mat, ...prev])}
                 onInspectCitation={handleInspectReference}
+                onAskTutorAboutSource={(sourceTitle, initialPrompt) => {
+                  handleTabSwitch('tutor');
+                  handleSendMessage(initialPrompt || `Can you explain the main concepts covered in "${sourceTitle}"?`);
+                }}
+                onGenerateQuizFromSource={() => {
+                  handleTabSwitch('practice');
+                }}
+              />
+            )}
+
+            {activeTab === 'weekly-report' && (
+              <WeeklyReportView
+                profile={profile}
+                concepts={concepts}
+                studyPlan={studyPlan}
+                onNavigateStudent={(tab) => {
+                  if (tab === 'quiz') handleTabSwitch('practice');
+                  else if (tab === 'knowledge-map') handleTabSwitch('map');
+                  else if (tab === 'tutor') handleTabSwitch('tutor');
+                  else if (tab === 'flashcards') handleTabSwitch('revision');
+                  else if (tab === 'materials') handleTabSwitch('materials');
+                  else handleTabSwitch(tab as any);
+                }}
               />
             )}
 

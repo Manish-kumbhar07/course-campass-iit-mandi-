@@ -4,6 +4,7 @@ import { Logo } from '../common/Logo';
 import { InteractiveDemoModal } from './InteractiveDemoModal';
 import { PricingView } from './PricingView';
 import { HeroStudentVisual } from './HeroStudentVisual';
+import { CourseCompassOrbit3D, HeroSelectorType } from './CourseCompassOrbit3D';
 import {
   Compass,
   ArrowRight,
@@ -52,6 +53,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   // Interactive demo modal state
   const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [heroSelector, setHeroSelector] = useState<HeroSelectorType>('organize');
 
   // Interactive feature preview tab inside Features view
   const [activeFeatureTab, setActiveFeatureTab] = useState<
@@ -113,80 +115,97 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {currentTab === 'home' && (
           <div className="animate-in fade-in duration-200">
             
-            {/* SECTION 1: HERO (Soft Off-White/Cream with Warm-to-Green Shading) */}
-            <section className="bg-gradient-to-r from-[#FAF7EE] via-[#F3F8F0] to-[#E0EFE4] pt-12 sm:pt-16 pb-16 border-b border-[#D8E4D5] relative overflow-hidden">
+            {/* SECTION 1: HERO (CourseCompass 3D Learning Orbit & Prescribed Core Flow) */}
+            <section className="bg-gradient-to-r from-[#FAF7EE] via-[#F3F8F0] to-[#E0EFE4] pt-10 sm:pt-14 pb-14 border-b border-[#D8E4D5] relative overflow-hidden">
               <div className="max-w-[1300px] mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
                   
-                  {/* Left Column: Bold Typography & Clean CTA (Strict Continuity) */}
-                  <div className="lg:col-span-6 space-y-6">
+                  {/* Left Column: Prescribed Editorial Typography & Interactive Selectors */}
+                  <div className="lg:col-span-6 space-y-5">
                     {/* Clean Typography Kicker */}
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#1B4D3E]">
-                      <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
-                      <span>Autonomous Cognitive Architecture</span>
-                      <span className="text-zinc-400">·</span>
-                      <span className="text-[#86868B] font-mono font-medium">Exam Engine</span>
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#263F2B]">
+                      <span className="w-2 h-2 rounded-full bg-[#263F2B] shrink-0 animate-pulse" />
+                      <span>YOUR PERSONAL STUDY COMPASS</span>
                     </div>
 
-                    {/* Headline in Exact Preserved Serif Typography */}
-                    <h1 className="font-serif-display text-4xl sm:text-5xl lg:text-[56px] font-bold tracking-tight text-[#17241B] leading-[1.10] text-balance">
-                      Master Complex Subjects with Clarity.
+                    {/* Headline in Exact Prescribed Editorial Serif */}
+                    <h1 className="font-serif-display text-4xl sm:text-5xl lg:text-[54px] font-bold tracking-tight text-[#17241B] leading-[1.10] text-balance">
+                      From scattered material to a study path that makes sense.
                     </h1>
 
-                    {/* Subtitle in Exact Preserved Typography */}
+                    {/* Subtitle in Exact Prescribed Copy */}
                     <p className="text-base sm:text-lg text-[#515154] max-w-xl leading-relaxed font-sans-body">
-                      CourseCompass organizes coursework, problem sets, and revision notes into a focused, step-by-step curriculum built for deep understanding.
+                      Upload lectures, PDFs, slides, and YouTube lessons. CourseCompass turns them into source-grounded explanations, adaptive practice, and clear next steps.
                     </p>
 
-                    {/* Clean Metadata Line (Unboxed Text with Subtle Separators) */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-[#515154] pt-1">
-                      <span className="font-medium text-[#17241B]">Video Lectures</span>
-                      <span className="text-zinc-300">·</span>
-                      <span className="font-medium text-[#17241B]">Textbook PDFs</span>
-                      <span className="text-zinc-300">·</span>
-                      <span className="font-medium text-[#17241B]">Lecture Slides</span>
-                      <span className="text-zinc-300">·</span>
-                      <span className="font-medium text-[#17241B]">Audio Recordings</span>
+                    {/* Interactive Hero Selector Pills */}
+                    <div className="pt-1">
+                      <div className="text-[11px] font-semibold text-[#697650] uppercase tracking-wider mb-2">
+                        I want to:
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 max-w-md">
+                        {[
+                          { id: 'organize', label: 'Organize my course', sub: 'PDFs, Videos, Slides & YouTube' },
+                          { id: 'understand', label: 'Understand a topic', sub: 'Evidence-grounded Socratic tutor' },
+                          { id: 'prepare', label: 'Prepare for an exam', sub: 'Targeted active-recall drills' },
+                          { id: 'practice', label: 'Practice weak concepts', sub: 'Prerequisite mastery DAG' }
+                        ].map((sel) => {
+                          const isCurrent = heroSelector === sel.id;
+                          return (
+                            <button
+                              key={sel.id}
+                              type="button"
+                              onClick={() => setHeroSelector(sel.id as any)}
+                              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                isCurrent
+                                  ? 'bg-white border-[#263F2B] ring-2 ring-[#263F2B]/15 shadow-xs'
+                                  : 'bg-white/70 hover:bg-white border-[#DCE5CE]'
+                              }`}
+                            >
+                              <div className={`text-xs font-semibold ${isCurrent ? 'text-[#263F2B]' : 'text-[#17241B]'}`}>
+                                {sel.label}
+                              </div>
+                              <div className="text-[10px] text-[#697650] leading-tight mt-0.5 line-clamp-1">
+                                {sel.sub}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Main CTA Actions */}
-                    <div className="pt-2 flex flex-wrap items-center gap-4">
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
                       <button
                         onClick={() => onNavigate('/sign-up')}
-                        className="px-6 py-3.5 text-sm font-semibold text-white bg-[#142417] hover:bg-[#0B150D] rounded-full transition-all shadow-sm flex items-center gap-2 group active:scale-[0.98]"
+                        className="px-6 py-3.5 text-sm font-semibold text-white bg-[#142417] hover:bg-[#0B150D] rounded-full transition-all shadow-sm flex items-center gap-2 group active:scale-[0.98] cursor-pointer"
                       >
-                        <span>Start Learning Free</span>
+                        <span>Build my study path</span>
                         <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                       </button>
 
                       <button
                         onClick={() => setDemoModalOpen(true)}
-                        className="px-6 py-3.5 text-sm font-semibold text-[#17241B] bg-white/80 hover:bg-white border border-[#D5E0CC] rounded-full transition-all flex items-center gap-2 active:scale-[0.98] shadow-2xs"
+                        className="px-6 py-3.5 text-sm font-semibold text-[#17241B] bg-white/90 hover:bg-white border border-[#D5E0CC] rounded-full transition-all flex items-center gap-2 active:scale-[0.98] shadow-2xs cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5 fill-current text-[#17241B]" />
-                        <span>Interactive Demo</span>
+                        <span>Explore the workspace</span>
                       </button>
                     </div>
 
-                    {/* Sub-CTA Trust Guarantees */}
-                    <div className="pt-3 border-t border-[#D5E0CC] text-xs text-[#687563] flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <span className="flex items-center gap-1.5 font-medium text-[#17241B]">
-                        <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" /> Private isolated storage
-                      </span>
-                      <span>·</span>
-                      <span className="flex items-center gap-1.5 font-medium text-[#17241B]">
-                        <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" /> Timestamped citations
-                      </span>
-                      <span>·</span>
-                      <span className="flex items-center gap-1.5 font-medium text-[#17241B]">
-                        <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" /> Zero hallucinations
-                      </span>
+                    {/* Sub-CTA Product Promise */}
+                    <div className="pt-2 border-t border-[#D5E0CC] text-xs font-medium text-[#687563] flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-700" />
+                      <span>Your material first. Evidence always.</span>
                     </div>
                   </div>
 
-                  {/* Right Column: Organized Student Study Workspace Visual */}
-                  <div className="lg:col-span-6 flex items-center justify-center pt-6 lg:pt-0 pb-6 lg:pb-2">
-                    <HeroStudentVisual />
+                  {/* Right Column: 3D CourseCompass Learning Orbit */}
+                  <div className="lg:col-span-6 flex items-center justify-center pt-2 lg:pt-0">
+                    <CourseCompassOrbit3D
+                      activeSelector={heroSelector}
+                      onExploreWorkspace={() => setDemoModalOpen(true)}
+                    />
                   </div>
                 </div>
               </div>

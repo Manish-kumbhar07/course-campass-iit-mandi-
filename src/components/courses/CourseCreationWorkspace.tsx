@@ -10,7 +10,10 @@ import {
   Loader2,
   Calendar,
   Clock,
-  Layers
+  Layers,
+  GraduationCap,
+  Globe,
+  Target
 } from 'lucide-react';
 import { Api } from '../../services/api-client';
 import { UploadDropzone } from '../common/UploadDropzone';
@@ -21,8 +24,11 @@ interface CourseCreationWorkspaceProps {
     name: string;
     code: string;
     subject: string;
+    academicLevel?: string;
     examDate: string;
     dailyStudyMinutes?: number;
+    preferredLanguage?: string;
+    learningGoals?: string;
     documents: CourseDocument[];
   }) => void;
   onNavigate: (route: AppRoute) => void;
@@ -34,12 +40,15 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
 }) => {
   const [step, setStep] = useState<'details' | 'upload'>('details');
 
-  // Form states
+  // Form states with all required custom fields
   const [courseName, setCourseName] = useState('');
   const [subject, setSubject] = useState('');
   const [code, setCode] = useState('');
+  const [academicLevel, setAcademicLevel] = useState('Undergraduate');
   const [examDate, setExamDate] = useState('');
   const [dailyMinutes, setDailyMinutes] = useState(45);
+  const [preferredLanguage, setPreferredLanguage] = useState('English');
+  const [learningGoals, setLearningGoals] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +98,11 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
       name: courseName,
       code,
       subject,
+      academicLevel,
       examDate,
       dailyStudyMinutes: dailyMinutes,
+      preferredLanguage,
+      learningGoals,
       documents: uploadedDocuments
     });
     onNavigate('/app/overview');
@@ -108,7 +120,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
         </h1>
         <p className="text-xs sm:text-sm text-[#5D655B]">
           {step === 'details'
-            ? 'Set up your academic subject to build personalized study paths, prerequisite graphs, and grounded AI tutoring.'
+            ? 'Set up any custom academic subject to build personalized study paths, prerequisite graphs, and grounded AI tutoring.'
             : 'Add your lecture recordings, slide presentations, textbook chapters, or diagrams. CourseCompass extracts conceptual dependencies.'}
         </p>
       </div>
@@ -145,7 +157,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
         </div>
       </div>
 
-      {/* Step 1: Course Details */}
+      {/* Step 1: Course Details Form */}
       {step === 'details' && (
         <form onSubmit={handleCreateCourse} className="space-y-6">
           <div className="bg-white border border-[#E1E4D8] rounded-2xl p-6 sm:p-8 shadow-2xs space-y-5">
@@ -164,14 +176,14 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
             <div className="space-y-4 text-xs">
               <div>
                 <label className="block font-medium text-[#17241B] mb-1">
-                  Course Title <span className="text-[#D71935]">*</span>
+                  Course Name <span className="text-[#D71935]">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={courseName}
                   onChange={(e) => setCourseName(e.target.value)}
-                  placeholder="e.g. Molecular Biology & Genetics"
+                  placeholder="e.g. Molecular Biology & Genetics, European History, Discrete Mathematics"
                   className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
                 />
               </div>
@@ -179,14 +191,14 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-medium text-[#17241B] mb-1">
-                    Academic Subject <span className="text-[#D71935]">*</span>
+                    Academic Subject / Department <span className="text-[#D71935]">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g. Biology"
+                    placeholder="e.g. Biology, History, Computer Science"
                     className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
                   />
                 </div>
@@ -199,9 +211,47 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="e.g. BIO 201"
+                    placeholder="e.g. BIO 201, HIST 102"
                     className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-medium text-[#17241B] mb-1 flex items-center gap-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-[#697650]" />
+                    <span>Academic Level</span>
+                  </label>
+                  <select
+                    value={academicLevel}
+                    onChange={(e) => setAcademicLevel(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
+                  >
+                    <option value="School">School / High School</option>
+                    <option value="Undergraduate">Undergraduate (College)</option>
+                    <option value="Graduate">Graduate / Master's / PhD</option>
+                    <option value="Competitive Exam">Competitive Exam</option>
+                    <option value="Professional">Professional Certification</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-[#17241B] mb-1 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-[#697650]" />
+                    <span>Preferred Language</span>
+                  </label>
+                  <select
+                    value={preferredLanguage}
+                    onChange={(e) => setPreferredLanguage(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
+                  >
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi (हिंदी)</option>
+                    <option value="Spanish">Spanish (Español)</option>
+                    <option value="French">French (Français)</option>
+                    <option value="German">German (Deutsch)</option>
+                  </select>
                 </div>
               </div>
 
@@ -230,12 +280,27 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
                     onChange={(e) => setDailyMinutes(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
                   >
+                    <option value={15}>15 minutes / day</option>
                     <option value={30}>30 minutes / day</option>
                     <option value={45}>45 minutes / day (Recommended)</option>
                     <option value={60}>60 minutes / day</option>
                     <option value={90}>90 minutes / day</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#17241B] mb-1 flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-[#697650]" />
+                  <span>Learning Goals (Optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={learningGoals}
+                  onChange={(e) => setLearningGoals(e.target.value)}
+                  placeholder="e.g. Focus on mechanism proofs, master key formulas, review 20 flashcards daily"
+                  className="w-full px-3.5 py-2 border border-[#E1E4D8] rounded-lg bg-[#F8F7EF] focus:outline-none focus:border-[#263F2B]"
+                />
               </div>
             </div>
           </div>
@@ -244,7 +309,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
             <button
               type="button"
               onClick={() => onNavigate('/app/overview')}
-              className="text-xs text-[#5D655B] hover:text-[#17241B]"
+              className="text-xs text-[#5D655B] hover:text-[#17241B] cursor-pointer"
             >
               Cancel
             </button>
@@ -252,7 +317,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 bg-[#D71935] hover:bg-[#b0142b] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
+              className="px-6 py-2.5 bg-[#263F2B] hover:bg-[#1e3222] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -298,7 +363,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
             <button
               type="button"
               onClick={handleFinish}
-              className="text-xs text-[#5D655B] hover:text-[#17241B]"
+              className="text-xs text-[#5D655B] hover:text-[#17241B] cursor-pointer"
             >
               Skip uploading for now
             </button>
@@ -309,7 +374,7 @@ export const CourseCreationWorkspace: React.FC<CourseCreationWorkspaceProps> = (
               className="px-6 py-2.5 bg-[#263F2B] hover:bg-[#1e3222] text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-[#DCE5CE]" />
-              <span>Go to Course Dashboard</span>
+              <span>Go to Course Overview</span>
             </button>
           </div>
         </div>

@@ -114,3 +114,4 @@ npm run build
 The project is configured for one-click deployment on **Vercel** with multi-service routing:
 - **Live URL**: [https://course-campass-iit-mandi-nine.vercel.app/](https://course-campass-iit-mandi-nine.vercel.app/)
 - **Configuration**: `vercel.json` maps `/api/(.*)` to the FastAPI backend service and `/(.*)` to the Vite SPA frontend service.
+

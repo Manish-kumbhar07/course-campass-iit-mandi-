@@ -2,10 +2,11 @@
  * Authentication Service for CourseCompass
  * Integrates with FastAPI /api/v1/auth endpoints:
  * - /login (credentials)
- * - /demo-login (pre-seeded Ananya Sharma session)
+ * - /demo-login (explicit demo session for evaluation)
  * - /signup (new account registration)
  * - /logout (token revocation)
- * With graceful offline demo session fallback when server is unreachable.
+ * Strict user data isolation: Never automatically logs in as Ananya Sharma.
+ * Real credentials create real isolated user workspaces.
  */
 
 import { User, Session } from '../types';
@@ -53,24 +54,24 @@ export const AuthService = {
       throw new Error('Please enter a valid academic or personal email address.');
     }
 
-    const isDemo = isDemoStudent || email.includes('ananya');
+    const trimmedEmail = email.trim().toLowerCase();
+    const isExplicitDemo = isDemoStudent && trimmedEmail === 'ananya.sharma@collegemail.edu';
 
-    // If demo requested and not explicitly forcing live mode without demo, call backend demo-login
     try {
       let session: Session;
-      if (isDemo) {
+      if (isExplicitDemo) {
         session = await Api.auth.demoLogin();
       } else {
-        session = await Api.auth.login(email, password);
+        session = await Api.auth.login(trimmedEmail, password);
       }
 
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
       this.notify(session);
       return session;
     } catch (err) {
-      // In demo mode or if server is not reachable, fall back to offline simulation
-      if (IS_DEMO_MODE || isDemo) {
-        const fallbackUser: User = isDemo
+      // Offline fallback: ONLY for explicit demo requests or when offline demo mode is configured
+      if (IS_DEMO_MODE || isExplicitDemo) {
+        const fallbackUser: User = isExplicitDemo
           ? {
               id: 'usr-ananya-sharma',
               name: 'Ananya Sharma',
@@ -81,11 +82,11 @@ export const AuthService = {
               createdAt: '2026-09-01T08:00:00Z',
             }
           : {
-              id: `usr-${Date.now()}`,
-              name: email.split('@')[0].replace(/[._]/g, ' '),
-              email,
+              id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              name: trimmedEmail.split('@')[0].replace(/[._]/g, ' '),
+              email: trimmedEmail,
               academicLevel: 'Undergraduate',
-              institution: 'University College',
+              institution: 'Academic Workspace',
               isNewUser: true,
               createdAt: new Date().toISOString(),
             };
@@ -94,7 +95,7 @@ export const AuthService = {
           user: fallbackUser,
           token: `cc_sec_tok_${Math.random().toString(36).substring(2)}`,
           expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-          isDemoSession: isDemo,
+          isDemoSession: isExplicitDemo,
         };
 
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(fallbackSession));
@@ -107,24 +108,27 @@ export const AuthService = {
   },
 
   async signUp(name: string, email: string, password = ''): Promise<Session> {
-    if (!name.trim()) {
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanName) {
       throw new Error('Please enter your full name.');
     }
-    if (!email || !email.includes('@')) {
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       throw new Error('Please enter a valid university or personal email address.');
     }
 
     try {
-      const session = await Api.auth.signup(name, email, password);
+      const session = await Api.auth.signup(cleanName, cleanEmail, password);
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
       this.notify(session);
       return session;
     } catch (err) {
       if (IS_DEMO_MODE) {
         const fallbackUser: User = {
-          id: `usr-${Date.now()}`,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
+          id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: cleanName,
+          email: cleanEmail,
           academicLevel: 'Undergraduate',
           isNewUser: true,
           createdAt: new Date().toISOString(),
@@ -146,24 +150,54 @@ export const AuthService = {
     }
   },
 
+  async refreshSession(): Promise<Session | null> {
+    const current = await this.getSession();
+    if (!current) return null;
+    try {
+      const refreshed = await Api.auth.refresh();
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(refreshed));
+      this.notify(refreshed);
+      return refreshed;
+    } catch {
+      return current;
+    }
+  },
+
   async signOut(): Promise<void> {
-    await Api.auth.logout();
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    this.notify(null);
+    try {
+      await Api.auth.logout();
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      sessionStorage.removeItem('coursecompass_selected_course');
+      sessionStorage.removeItem('coursecompass_tutor_history');
+      sessionStorage.removeItem('coursecompass_quiz_cache');
+      this.notify(null);
+    }
   },
 
-  async requestPasswordReset(_email: string): Promise<boolean> {
-    await new Promise((r) => setTimeout(r, 400));
-    return true;
+  async requestPasswordReset(email: string): Promise<boolean> {
+    try {
+      return await Api.auth.forgotPassword(email);
+    } catch {
+      return true; // Don't disclose account existence for security
+    }
   },
 
-  async resetPassword(_token: string, _newPassword: string): Promise<boolean> {
-    await new Promise((r) => setTimeout(r, 400));
-    return true;
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    try {
+      return await Api.auth.resetPassword(token, newPassword);
+    } catch {
+      return false;
+    }
   },
 
-  async verifyEmail(_token: string): Promise<boolean> {
-    await new Promise((r) => setTimeout(r, 300));
-    return true;
+  async verifyEmail(token: string): Promise<boolean> {
+    try {
+      return await Api.auth.verifyEmail(token);
+    } catch {
+      return false;
+    }
   },
 };

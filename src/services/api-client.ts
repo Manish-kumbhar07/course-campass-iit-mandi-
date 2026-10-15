@@ -134,6 +134,38 @@ export const Api = {
       });
     },
 
+    async refresh(): Promise<Session> {
+      return apiRequest<Session>('/auth/refresh', { method: 'POST' });
+    },
+
+    async forgotPassword(email: string): Promise<boolean> {
+      try {
+        await apiRequest<void>('/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+      } catch {
+        // Do not disclose
+      }
+      return true;
+    },
+
+    async resetPassword(token: string, newPassword: string): Promise<boolean> {
+      await apiRequest<void>('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+      return true;
+    },
+
+    async verifyEmail(token: string): Promise<boolean> {
+      await apiRequest<void>('/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+      return true;
+    },
+
     async logout(): Promise<void> {
       try {
         await apiRequest<void>('/auth/logout', { method: 'POST' });
@@ -418,4 +450,34 @@ export const Api = {
       });
     },
   },
+
+  // --------------------------------------------------------------------------
+  // YouTube Ingestion & Summary Agent
+  // --------------------------------------------------------------------------
+  youtube: {
+    async analyze(
+      courseId: string,
+      data: { url: string; title?: string; language?: string }
+    ): Promise<any> {
+      return apiRequest(`/courses/${courseId}/youtube`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async getStatus(courseId: string, sourceId: string): Promise<any> {
+      return apiRequest(`/courses/${courseId}/youtube/${sourceId}/status`);
+    },
+
+    async getSummary(courseId: string, sourceId: string): Promise<any> {
+      return apiRequest(`/courses/${courseId}/youtube/${sourceId}/summary`);
+    },
+
+    async generateQuiz(courseId: string, sourceId: string): Promise<any> {
+      return apiRequest(`/courses/${courseId}/youtube/${sourceId}/quiz`, {
+        method: 'POST',
+      });
+    },
+  },
 };
+

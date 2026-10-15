@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ConceptNode, SourceCitation, StudentTab } from '../../types';
 import {
   Network,
@@ -10,7 +10,14 @@ import {
   BookOpen,
   Filter,
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Bot,
+  Brain,
+  Layers,
+  RotateCw,
+  Eye,
+  Sliders,
+  Play
 } from 'lucide-react';
 
 interface KnowledgeMapViewProps {
@@ -18,16 +25,40 @@ interface KnowledgeMapViewProps {
   onSelectConceptToQuiz: (conceptId: string) => void;
   onSelectConceptToTutor: (concept: ConceptNode) => void;
   onInspectCitation: (citation: SourceCitation) => void;
+  onAddToStudyPlan?: (concept: ConceptNode) => void;
 }
 
 export const KnowledgeMapView: React.FC<KnowledgeMapViewProps> = ({
   concepts,
   onSelectConceptToQuiz,
   onSelectConceptToTutor,
-  onInspectCitation
+  onInspectCitation,
+  onAddToStudyPlan
 }) => {
-  const [selectedConceptId, setSelectedConceptId] = useState<string>('c-base-cases');
+  const [selectedConceptId, setSelectedConceptId] = useState<string>(
+    concepts[0]?.id || 'c-base-cases'
+  );
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
   const [filter, setFilter] = useState<'all' | 'attention' | 'mastered'>('all');
+  const [isRotating, setIsRotating] = useState(true);
+  const [orbitAngle, setOrbitAngle] = useState(0);
+
+  // Detect user preference for reduced motion
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mediaQuery.matches) {
+      setIsRotating(false);
+    }
+  }, []);
+
+  // Gentle 3D rotation animation when enabled
+  useEffect(() => {
+    if (!isRotating || viewMode !== '3d') return;
+    const interval = setInterval(() => {
+      setOrbitAngle((prev) => (prev + 0.5) % 360);
+    }, 50);
+    return () => clearInterval(interval);
+  }, [isRotating, viewMode]);
 
   if (!concepts || concepts.length === 0) {
     return (
@@ -57,273 +88,375 @@ export const KnowledgeMapView: React.FC<KnowledgeMapViewProps> = ({
     return true;
   });
 
-  // Helper to find prerequisite names
   const getPrerequisiteNames = (prereqIds: string[]) => {
     return prereqIds.map((id) => concepts.find((c) => c.id === id)?.name || id);
   };
 
+  // Find concepts that have selectedConcept as a prerequisite
+  const dependentConcepts = concepts.filter((c) =>
+    c.prerequisiteIds?.includes(selectedConcept.id)
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header and Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#E1E4D8] rounded-xl p-5 shadow-2xs">
+      {/* Header with Mode Toggle & Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#E1E4D8] rounded-2xl p-6 shadow-2xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs text-[#697650] font-semibold uppercase tracking-wider">
             <Network className="w-4 h-4 text-[#263F2B]" />
-            <span>Curriculum Dependency Graph</span>
+            <span>Interactive Prerequisite Architecture</span>
           </div>
-          <h2 className="text-xl font-bold font-serif-display text-[#263F2B]">
-            Prerequisite Knowledge Map
+          <h2 className="text-xl sm:text-2xl font-bold font-serif-display text-[#263F2B]">
+            Course Knowledge Map
           </h2>
           <p className="text-xs text-[#5D655B]">
-            Interactive map tracing how foundational memory models enable advanced graph traversal algorithms.
+            Trace prerequisite pathways and examine how foundational topics unlock advanced curriculum concepts.
           </p>
         </div>
 
-        {/* Filter buttons */}
-        <div className="flex items-center gap-1.5 p-1 bg-[#F1F2E6] border border-[#E1E4D8] rounded-lg shrink-0">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-              filter === 'all'
-                ? 'bg-white text-[#263F2B] shadow-xs'
-                : 'text-[#5D655B] hover:text-[#17241B]'
-            }`}
-          >
-            All Concepts ({concepts.length})
-          </button>
-          <button
-            onClick={() => setFilter('attention')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-              filter === 'attention'
-                ? 'bg-white text-[#D71935] shadow-xs font-semibold'
-                : 'text-[#5D655B] hover:text-[#17241B]'
-            }`}
-          >
-            Needs Attention ({attentionCount})
-          </button>
-          <button
-            onClick={() => setFilter('mastered')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-              filter === 'mastered'
-                ? 'bg-white text-[#263F2B] shadow-xs font-semibold'
-                : 'text-[#5D655B] hover:text-[#17241B]'
-            }`}
-          >
-            Mastered ({masteredCount})
-          </button>
+        {/* View Mode Toggle & Filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 3D vs 2D Toggle */}
+          <div className="flex items-center p-1 bg-[#F1F2E6] border border-[#E1E4D8] rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setViewMode('3d')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === '3d'
+                  ? 'bg-white text-[#263F2B] shadow-xs'
+                  : 'text-[#5D655B] hover:text-[#17241B]'
+              }`}
+            >
+              3D Spatial Graph
+            </button>
+            <button
+              onClick={() => setViewMode('2d')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === '2d'
+                  ? 'bg-white text-[#263F2B] shadow-xs'
+                  : 'text-[#5D655B] hover:text-[#17241B]'
+              }`}
+            >
+              2D Accessible View
+            </button>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1 p-1 bg-[#F1F2E6] border border-[#E1E4D8] rounded-xl text-xs">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                filter === 'all'
+                  ? 'bg-white text-[#263F2B] font-bold shadow-xs'
+                  : 'text-[#5D655B] hover:text-[#17241B]'
+              }`}
+            >
+              All ({concepts.length})
+            </button>
+            <button
+              onClick={() => setFilter('attention')}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                filter === 'attention'
+                  ? 'bg-white text-[#D71935] font-bold shadow-xs'
+                  : 'text-[#5D655B] hover:text-[#17241B]'
+              }`}
+            >
+              Attention ({attentionCount})
+            </button>
+            <button
+              onClick={() => setFilter('mastered')}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                filter === 'mastered'
+                  ? 'bg-white text-emerald-800 font-bold shadow-xs'
+                  : 'text-[#5D655B] hover:text-[#17241B]'
+              }`}
+            >
+              Mastered ({masteredCount})
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Grid: Visual Map Stage (Left) & Deep-Dive Concept Drawer (Right) */}
+      {/* Main Layout: Graph Stage (Col 7/8) + Concept Detail Drawer (Col 5/4) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Visual Map Stage */}
-        <div className="lg:col-span-7 bg-white border border-[#E1E4D8] rounded-xl p-6 shadow-2xs space-y-6">
-          <div className="flex items-center justify-between text-xs text-[#5D655B] pb-3 border-b border-[#E1E4D8]">
-            <span className="font-medium text-[#17241B]">Prerequisite Pathways</span>
-            <span className="text-[11px] text-[#777E70]">Click any node to inspect dependencies</span>
+        {/* GRAPH STAGE */}
+        <div className="lg:col-span-7 bg-white border border-[#E1E4D8] rounded-2xl p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E1E4D8] text-xs">
+            <span className="font-semibold text-[#17241B]">
+              {viewMode === '3d' ? '3D Spatial Knowledge Graph' : 'Hierarchical Concept List'}
+            </span>
+
+            {viewMode === '3d' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsRotating(!isRotating)}
+                  className="px-2 py-1 rounded bg-[#F1F2E6] hover:bg-[#EAEFE4] text-[#263F2B] font-medium flex items-center gap-1 cursor-pointer"
+                  title="Toggle continuous rotation"
+                >
+                  <RotateCw className={`w-3 h-3 ${isRotating ? 'animate-spin' : ''}`} />
+                  <span>{isRotating ? 'Pause rotation' : 'Orbit'}</span>
+                </button>
+                <button
+                  onClick={() => setOrbitAngle((prev) => (prev + 45) % 360)}
+                  className="px-2 py-1 rounded bg-[#F1F2E6] hover:bg-[#EAEFE4] text-[#263F2B] font-medium cursor-pointer"
+                >
+                  +45°
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Node Visual Cluster */}
-          <div className="space-y-4">
-            {filteredConcepts.map((node) => {
-              const isSelected = node.id === selectedConceptId;
-              const prereqNames = getPrerequisiteNames(node.prerequisiteIds);
+          {/* 3D SPATIAL GRAPH VIEW */}
+          {viewMode === '3d' ? (
+            <div className="relative w-full h-[450px] bg-gradient-to-b from-[#FAF9F5] to-[#F1F2E6]/60 rounded-xl border border-[#E1E4D8] overflow-hidden flex items-center justify-center select-none perspective-[900px]">
+              {/* Background Spatial Grid Rings */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                <div className="w-[360px] h-[360px] rounded-full border border-dashed border-[#A8B594] animate-spin-slow" />
+                <div className="absolute w-[240px] h-[240px] rounded-full border border-[#DCE5CE]" />
+              </div>
 
-              return (
+              {/* 3D Orbiting Stage */}
+              <div
+                className="relative w-full h-full flex items-center justify-center transition-transform duration-100 ease-out"
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: `rotateX(20deg) rotateY(${orbitAngle}deg)`
+                }}
+              >
+                {/* Central Anchor Beacon */}
                 <div
-                  key={node.id}
-                  onClick={() => setSelectedConceptId(node.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-[#263F2B] bg-[#F1F2E6]/80 ring-1 ring-[#263F2B]'
-                      : 'border-[#E1E4D8] bg-[#F8F7EF]/50 hover:bg-[#F8F7EF] hover:border-[#A8B594]'
-                  }`}
+                  className="absolute w-12 h-12 rounded-2xl bg-[#263F2B] text-white flex items-center justify-center shadow-lg border-2 border-[#DCE5CE] z-10"
+                  style={{ transform: `rotateY(${-orbitAngle}deg)` }}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-[11px] text-[#697650]">
-                        <span className="font-semibold text-[#263F2B]">{node.topic}</span>
-                        <span>·</span>
-                        <span>{node.difficulty}</span>
-                        {node.status === 'attention' && (
-                          <span className="text-[#D71935] font-semibold flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Needs Attention
-                          </span>
-                        )}
-                        {node.status === 'mastered' && (
-                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Mastered
-                          </span>
-                        )}
-                        {node.status === 'locked' && (
-                          <span className="text-[#777E70] flex items-center gap-1">
-                            <Lock className="w-3 h-3" /> Locked
-                          </span>
-                        )}
+                  <Network className="w-6 h-6 text-[#DCE5CE]" />
+                </div>
+
+                {/* Floating Concept Nodes in 3D */}
+                {filteredConcepts.map((node, i) => {
+                  const count = filteredConcepts.length;
+                  const angle = (i / count) * 2 * Math.PI;
+                  const radius = 140;
+                  const x = Math.cos(angle) * radius;
+                  const z = Math.sin(angle) * radius;
+                  const y = (i % 2 === 0 ? -1 : 1) * 35;
+
+                  const isSelected = node.id === selectedConceptId;
+
+                  return (
+                    <div
+                      key={node.id}
+                      onClick={() => setSelectedConceptId(node.id)}
+                      className={`absolute cursor-pointer transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2 ${
+                        isSelected ? 'z-30 scale-110' : 'z-20 hover:scale-105'
+                      }`}
+                      style={{
+                        transform: `translate3d(${x}px, ${y}px, ${z}px) rotateY(${-orbitAngle}deg)`
+                      }}
+                    >
+                      <div
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 border whitespace-nowrap ${
+                          isSelected
+                            ? 'bg-[#263F2B] text-white border-white ring-2 ring-[#263F2B]'
+                            : node.status === 'mastered'
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : node.status === 'attention'
+                            ? 'bg-rose-50 text-[#D71935] border-rose-300'
+                            : 'bg-white text-[#17241B] border-[#E1E4D8]'
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            node.status === 'mastered'
+                              ? 'bg-emerald-600'
+                              : node.status === 'attention'
+                              ? 'bg-[#D71935]'
+                              : 'bg-amber-500'
+                          }`}
+                        />
+                        <span className="max-w-[120px] truncate">{node.name}</span>
+                        <span className="font-mono text-[10px] opacity-80">{node.masteryPercent}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Instructions Badge */}
+              <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-md border border-[#E1E4D8] text-[11px] text-[#5D655B]">
+                Click nodes to inspect prerequisite links & launch tutor
+              </div>
+            </div>
+          ) : (
+            /* 2D ACCESSIBLE LIST VIEW */
+            <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+              {filteredConcepts.map((node) => {
+                const isSelected = node.id === selectedConceptId;
+                const prereqNames = getPrerequisiteNames(node.prerequisiteIds || []);
+
+                return (
+                  <div
+                    key={node.id}
+                    onClick={() => setSelectedConceptId(node.id)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-[#263F2B] bg-[#F1F2E6]/80 ring-1 ring-[#263F2B]'
+                        : 'border-[#E1E4D8] bg-[#F8F7EF]/50 hover:bg-[#F8F7EF] hover:border-[#A8B594]'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[11px] text-[#697650]">
+                          <span className="font-semibold text-[#263F2B]">{node.topic}</span>
+                          <span>·</span>
+                          <span>{node.difficulty}</span>
+                          {node.status === 'attention' && (
+                            <span className="text-[#D71935] font-semibold flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" /> Needs Attention
+                            </span>
+                          )}
+                          {node.status === 'mastered' && (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Mastered
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 className="text-sm font-bold text-[#17241B]">{node.name}</h4>
+                        <p className="text-xs text-[#5D655B] line-clamp-1">{node.summary}</p>
                       </div>
 
-                      <h3 className="text-sm font-semibold text-[#17241B]">
-                        {node.name}
-                      </h3>
-
-                      {prereqNames.length > 0 && (
-                        <p className="text-[11px] text-[#5D655B]">
-                          Prerequisites: <span className="font-medium text-[#263F2B]">{prereqNames.join(', ')}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Mastery Bar & Badge */}
-                    <div className="flex sm:flex-col items-end justify-between sm:justify-center gap-2 shrink-0">
-                      <span className="font-mono-code font-bold text-xs text-[#263F2B]">
-                        {node.masteryPercent}% Mastery
-                      </span>
-                      <div className="w-24 h-2 bg-[#E1E4D8] rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            node.status === 'attention'
-                              ? 'bg-[#D71935]'
-                              : node.status === 'mastered'
-                              ? 'bg-[#263F2B]'
-                              : 'bg-[#A8B594]'
-                          }`}
-                          style={{ width: `${node.masteryPercent}%` }}
-                        ></div>
+                      <div className="flex items-center gap-4 shrink-0 sm:border-l sm:border-[#E1E4D8] sm:pl-4">
+                        <div className="text-right">
+                          <span className="block font-mono-code text-base font-bold text-[#263F2B]">
+                            {node.masteryPercent}%
+                          </span>
+                          <span className="text-[10px] text-[#5D655B] uppercase font-semibold">
+                            Mastery
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Dependency legend */}
-          <div className="pt-4 border-t border-[#E1E4D8] flex flex-wrap items-center gap-4 text-xs text-[#5D655B]">
-            <span className="font-medium text-[#17241B]">Legend:</span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#263F2B]"></span> Mastered (≥ 75%)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#A8B594]"></span> In Progress (50–74%)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D71935]"></span> Needs Attention (&lt; 50%)
-            </span>
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Right Drawer: Concept Deep-Dive Inspector */}
-        <div className="lg:col-span-5 bg-white border border-[#E1E4D8] rounded-xl p-6 shadow-2xs space-y-6 sticky top-24">
-          <div className="pb-3 border-b border-[#E1E4D8] space-y-1">
-            <div className="flex items-center justify-between text-xs text-[#697650]">
-              <span className="font-semibold text-[#263F2B]">{selectedConcept.topic}</span>
-              <span className="font-mono-code">{selectedConcept.difficulty}</span>
+        {/* CONCEPT DETAIL DRAWER (RIGHT) */}
+        <div className="lg:col-span-5 bg-white border border-[#E1E4D8] rounded-2xl p-6 shadow-2xs space-y-6">
+          <div className="space-y-2 pb-4 border-b border-[#E1E4D8]">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#697650]">
+                Concept Inspector
+              </span>
+              <span
+                className={`text-[11px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  selectedConcept.status === 'mastered'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : selectedConcept.status === 'attention'
+                    ? 'bg-rose-50 text-[#D71935] border border-rose-200'
+                    : 'bg-amber-50 text-amber-800 border border-amber-200'
+                }`}
+              >
+                {selectedConcept.status.toUpperCase()} ({selectedConcept.masteryPercent}%)
+              </span>
             </div>
             <h3 className="font-serif-display text-xl font-bold text-[#17241B]">
               {selectedConcept.name}
             </h3>
-          </div>
-
-          {/* Summary */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-[#697650] uppercase tracking-wider">
-              Concept Synthesis
-            </h4>
             <p className="text-xs text-[#5D655B] leading-relaxed">
               {selectedConcept.summary}
             </p>
           </div>
 
-          {/* Common Misconception Alert */}
-          <div className="p-3.5 rounded-lg bg-[#FFF8F8] border border-[#F8E2E3] space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#D71935]">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Common Student Misconception</span>
-            </div>
-            <p className="text-xs text-[#5D655B] leading-relaxed">
-              {selectedConcept.primaryMisconception}
-            </p>
-          </div>
-
-          {/* Prerequisites Status */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-[#697650] uppercase tracking-wider">
-              Required Prerequisites
-            </h4>
-            {selectedConcept.prerequisiteIds.length === 0 ? (
-              <p className="text-xs text-[#777E70] italic">
-                Foundational root concept (No prerequisites required).
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {selectedConcept.prerequisiteIds.map((pId) => {
-                  const prereq = concepts.find((c) => c.id === pId);
-                  if (!prereq) return null;
-                  return (
+          {/* Prerequisite Chains */}
+          <div className="space-y-3 text-xs">
+            <div>
+              <span className="font-bold text-[#17241B] block mb-1.5">
+                Prerequisites (Foundational Requirements):
+              </span>
+              {(selectedConcept.prerequisiteIds || []).length === 0 ? (
+                <p className="text-[11px] text-[#697650] italic bg-[#F8F7EF] p-2.5 rounded-lg border border-[#E1E4D8]">
+                  None. This is a foundational ground-level concept.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {getPrerequisiteNames(selectedConcept.prerequisiteIds || []).map((name, i) => (
                     <div
-                      key={pId}
-                      className="p-2.5 rounded-md bg-[#F8F7EF] border border-[#E1E4D8] flex items-center justify-between text-xs"
+                      key={i}
+                      className="p-2 bg-[#F8F7EF] border border-[#E1E4D8] rounded-lg flex items-center justify-between text-[11px]"
                     >
-                      <span className="font-medium text-[#17241B]">{prereq.name}</span>
-                      <span
-                        className={`font-mono-code font-semibold ${
-                          prereq.masteryPercent >= 60 ? 'text-emerald-700' : 'text-[#D71935]'
-                        }`}
-                      >
-                        {prereq.masteryPercent}% Mastery
-                      </span>
+                      <span className="font-medium text-[#17241B]">{name}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <span className="font-bold text-[#17241B] block mb-1.5">
+                Unlocks (Advanced Topics Enabled):
+              </span>
+              {dependentConcepts.length === 0 ? (
+                <p className="text-[11px] text-[#697650] italic bg-[#F8F7EF] p-2.5 rounded-lg border border-[#E1E4D8]">
+                  Terminal capstone topic in current syllabus.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {dependentConcepts.map((dep) => (
+                    <div
+                      key={dep.id}
+                      onClick={() => setSelectedConceptId(dep.id)}
+                      className="p-2 bg-[#FAF9F5] hover:bg-[#F1F2E6] border border-[#E1E4D8] rounded-lg flex items-center justify-between text-[11px] cursor-pointer transition-colors"
+                    >
+                      <span className="font-medium text-[#17241B]">{dep.name}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-[#697650]" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedConcept.primaryMisconception && (
+              <div className="p-3 rounded-xl bg-[#FFF8F8] border border-[#F8E2E3] space-y-1">
+                <span className="font-bold text-[#D71935] flex items-center gap-1.5 text-[11px]">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Common Misconception
+                </span>
+                <p className="text-[11px] text-[#D71935]">
+                  "{selectedConcept.primaryMisconception}"
+                </p>
               </div>
             )}
           </div>
 
-          {/* Citations Grounding */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-[#697650] uppercase tracking-wider">
-              Indexed Courseware Sources
-            </h4>
-            <div className="space-y-2">
-              {selectedConcept.citations.map((cite) => (
-                <div
-                  key={cite.id}
-                  className="p-3 rounded-lg bg-[#F1F2E6]/60 border border-[#E1E4D8] space-y-1 text-xs"
-                >
-                  <div className="flex justify-between items-center font-medium">
-                    <span className="text-[#263F2B] truncate max-w-[200px]">
-                      {cite.sourceTitle}
-                    </span>
-                    <button
-                      onClick={() => onInspectCitation(cite)}
-                      className="text-[#D71935] hover:underline font-mono-code text-[11px] shrink-0 flex items-center gap-1"
-                    >
-                      {cite.locationLabel} <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                  <p className="text-[#5D655B] text-[11px] line-clamp-2 italic">
-                    "{cite.excerpt}"
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="pt-2 flex flex-col gap-2">
-            <button
-              onClick={() => onSelectConceptToQuiz(selectedConcept.id)}
-              className="w-full py-2.5 px-4 bg-[#D71935] hover:bg-[#b0142b] text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs"
-            >
-              <span>Practice Diagnostic Quiz for This Concept</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+          {/* Action Buttons */}
+          <div className="space-y-2 pt-2 border-t border-[#E1E4D8]">
             <button
               onClick={() => onSelectConceptToTutor(selectedConcept)}
-              className="w-full py-2.5 px-4 bg-[#F8F7EF] hover:bg-[#E1E4D8] text-[#263F2B] border border-[#E1E4D8] rounded-lg text-xs font-semibold transition-colors"
+              className="w-full py-2.5 bg-[#263F2B] hover:bg-[#1e3222] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
-              Ask AI Tutor About {selectedConcept.name}
+              <Bot className="w-4 h-4 text-[#DCE5CE]" />
+              <span>Ask AI Tutor About This Concept</span>
             </button>
+
+            <button
+              onClick={() => onSelectConceptToQuiz(selectedConcept.id)}
+              className="w-full py-2.5 bg-[#F1F2E6] hover:bg-[#EAEFE4] border border-[#E1E4D8] text-[#263F2B] rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <Brain className="w-4 h-4" />
+              <span>Practice This Concept (Adaptive Quiz)</span>
+            </button>
+
+            {selectedConcept.citations && selectedConcept.citations.length > 0 && (
+              <button
+                onClick={() => onInspectCitation(selectedConcept.citations[0])}
+                className="w-full py-2 bg-white hover:bg-[#F8F7EF] border border-[#E1E4D8] text-[#5D655B] hover:text-[#17241B] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Inspect Source Citation</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
