@@ -25,8 +25,10 @@ import {
 } from '../types';
 import { MockService } from './mock-services';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+export const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '/api/v1';
+export const IS_DEMO_MODE =
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE === 'true';
 
 export function getStoredUserId(): string {
   try {
