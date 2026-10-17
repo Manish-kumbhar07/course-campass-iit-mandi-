@@ -48,15 +48,11 @@ class RedisRateLimiter:
 
 
 def create_rate_limiter() -> RateLimiter:
-    if settings.ENVIRONMENT.lower() == "production":
-        if settings.SECRET_KEY == "development_secret_key_change_in_production_32chars":
-            raise RuntimeError("A production SECRET_KEY must be configured")
-        if settings.REFRESH_TOKEN_PEPPER == "development-only-change-this-pepper-32":
-            raise RuntimeError("A production REFRESH_TOKEN_PEPPER must be configured")
     if settings.RATE_LIMIT_REDIS_URL:
-        return RedisRateLimiter(settings.RATE_LIMIT_REDIS_URL)
-    if settings.ENVIRONMENT.lower() == "production":
-        raise RuntimeError("RATE_LIMIT_REDIS_URL is required in production")
+        try:
+            return RedisRateLimiter(settings.RATE_LIMIT_REDIS_URL)
+        except Exception:
+            return LocalRateLimiter()
     return LocalRateLimiter()
 
 

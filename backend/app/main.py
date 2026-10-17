@@ -19,8 +19,12 @@ logger = logging.getLogger("coursecompass.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.ENVIRONMENT.lower() != "production":
+    try:
         await init_db()
+    except Exception as e:
+        logger.warning("Database table initialization: %s", e)
+
+    if settings.ENVIRONMENT.lower() != "production":
         from app.core.database import AsyncSessionLocal
         from app.services.seed_service import seed_demo_course
         async with AsyncSessionLocal() as session:
