@@ -17,13 +17,15 @@ interface AdaptiveQuizViewProps {
   onCompleteQuiz: (scorePercent: number) => void;
   onInspectCitation: (citation: SourceCitation) => void;
   onNavigateStudent: (tab: StudentTab) => void;
+  onGenerateQuiz?: () => void;
 }
 
 export const AdaptiveQuizView: React.FC<AdaptiveQuizViewProps> = ({
   questions,
   onCompleteQuiz,
   onInspectCitation,
-  onNavigateStudent
+  onNavigateStudent,
+  onGenerateQuiz
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -42,15 +44,25 @@ export const AdaptiveQuizView: React.FC<AdaptiveQuizViewProps> = ({
             No quiz questions available yet
           </h3>
           <p className="text-xs text-[#5D655B] max-w-sm mx-auto leading-relaxed">
-            Upload course materials or lecture notes first so the system can extract concepts and generate verified adaptive quiz questions.
+            Generate an adaptive quiz from your indexed course materials or upload new notes to test your comprehension.
           </p>
         </div>
-        <button
-          onClick={() => onNavigateStudent('materials')}
-          className="px-4 py-2 bg-[#263F2B] text-white text-xs font-semibold rounded-lg hover:bg-[#1f3323] transition-colors"
-        >
-          Upload Course Materials
-        </button>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+          {onGenerateQuiz && (
+            <button
+              onClick={onGenerateQuiz}
+              className="px-4 py-2 bg-[#D71935] hover:bg-[#b0142b] text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
+            >
+              Generate Practice Quiz
+            </button>
+          )}
+          <button
+            onClick={() => onNavigateStudent('materials')}
+            className="px-4 py-2 bg-[#263F2B] text-white text-xs font-semibold rounded-lg hover:bg-[#1f3323] transition-colors"
+          >
+            Upload Course Materials
+          </button>
+        </div>
       </div>
     );
   }
@@ -94,6 +106,8 @@ export const AdaptiveQuizView: React.FC<AdaptiveQuizViewProps> = ({
 
   if (isFinished) {
     const finalScore = Math.round((scoreCount / questions.length) * 100);
+    const distinctConcepts = Array.from(new Set(questions.map((q) => q.conceptName || 'Course Foundations')));
+
     return (
       <div className="max-w-2xl mx-auto bg-white border border-[#E1E4D8] rounded-xl p-8 shadow-2xs space-y-6 text-center animate-in fade-in duration-200">
         <div className="w-12 h-12 rounded-full bg-[#DCE5CE] text-[#263F2B] flex items-center justify-center mx-auto">
@@ -108,19 +122,25 @@ export const AdaptiveQuizView: React.FC<AdaptiveQuizViewProps> = ({
             Adaptive Diagnostic Assessment Finished
           </h2>
           <p className="text-sm text-[#5D655B] max-w-md mx-auto">
-            You scored <strong className="text-[#17241B]">{scoreCount} of {questions.length}</strong> ({finalScore}%). Your concept mastery profile for Recursion Base Cases and DFS Traversal has been updated.
+            You scored <strong className="text-[#17241B]">{scoreCount} of {questions.length}</strong> ({finalScore}%). Your concept mastery profile has been updated.
           </p>
         </div>
 
         <div className="p-4 rounded-lg bg-[#F8F7EF] border border-[#E1E4D8] text-xs space-y-2 max-w-md mx-auto text-left">
-          <div className="flex justify-between items-center font-medium">
-            <span>Recursion Base Cases</span>
-            <span className="text-emerald-700 font-mono-code font-bold">+12% Mastery Gain</span>
-          </div>
-          <div className="flex justify-between items-center font-medium">
-            <span>DFS Traversal Call Stack</span>
-            <span className="text-emerald-700 font-mono-code font-bold">+8% Mastery Gain</span>
-          </div>
+          {distinctConcepts.map((conceptName, idx) => (
+            <div key={idx} className="flex justify-between items-center font-medium">
+              <span>{conceptName}</span>
+              <span
+                className={`font-mono-code font-bold ${
+                  finalScore >= 60 ? 'text-emerald-700' : 'text-[#D71935]'
+                }`}
+              >
+                {finalScore >= 60
+                  ? `+${Math.max(8, Math.round(finalScore / 7))}% Mastery Gain`
+                  : 'Needs Review'}
+              </span>
+            </div>
+          ))}
         </div>
 
         <div className="pt-4 flex items-center justify-center gap-3">

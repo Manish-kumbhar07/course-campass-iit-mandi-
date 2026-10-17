@@ -35,10 +35,21 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setError('Please enter a valid academic or personal email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const session = await signIn(email, password, false);
+      const session = await signIn(trimmedEmail, password, false);
       if (session.user.isNewUser) {
         onNavigate('/onboarding');
       } else {

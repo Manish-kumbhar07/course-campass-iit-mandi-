@@ -34,6 +34,17 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
     e.preventDefault();
     setError(null);
 
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+
+    if (!cleanName) {
+      setError('Please enter your full name.');
+      return;
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError('Please enter a valid university or personal email address.');
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;
@@ -49,7 +60,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
 
     setIsLoading(true);
     try {
-      await signUp(name, email, password);
+      await signUp(cleanName, cleanEmail, password);
       // New user flow: route to onboarding
       onNavigate('/onboarding');
     } catch (err: unknown) {

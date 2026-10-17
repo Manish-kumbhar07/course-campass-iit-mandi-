@@ -473,22 +473,37 @@ function AppContent() {
   const handleCompleteQuiz = async (scorePercent: number) => {
     try {
       // 1. Submit diagnostic check on backend to update official mastery
-      const submitRes = await Api.quizzes.submit('quiz-cs204-diag', [
-        {
-          questionId: 'q-dfs-cycle-1',
-          selectedOptionId: 'opt-2'
-        }
-      ]).catch(() => null);
+      const submitRes = await Api.quizzes.submit(`quiz-${activeCourseId}`, quizQuestions.map(q => ({
+        questionId: q.id,
+        selectedOptionId: q.options.find(o => o.isCorrect)?.id
+      }))).catch(() => null);
 
-      if (submitRes && submitRes.updatedConcepts) {
+      if (submitRes && submitRes.updatedConcepts && submitRes.updatedConcepts.length > 0) {
         setConcepts((prev) =>
           prev.map((c) => {
-            const upd = submitRes.updatedConcepts.find((u) => u.conceptId === c.id);
+            const upd = submitRes.updatedConcepts.find((u: any) => u.conceptId === c.id);
             if (upd) {
               return {
                 ...c,
                 masteryPercent: upd.newMasteryPercent,
                 status: upd.newStatus as any
+              };
+            }
+            return c;
+          })
+        );
+      } else {
+        // Dynamic fallback updating concepts assessed in this quiz
+        const gain = scorePercent >= 70 ? 12 : -5;
+        setConcepts((prev) =>
+          prev.map((c) => {
+            const wasInQuiz = quizQuestions.some((q) => q.conceptId === c.id);
+            if (wasInQuiz || prev.length <= 3) {
+              const nextMastery = Math.max(0, Math.min(100, c.masteryPercent + gain));
+              return {
+                ...c,
+                masteryPercent: nextMastery,
+                status: nextMastery >= 75 ? 'mastered' : nextMastery >= 40 ? 'learning' : 'attention'
               };
             }
             return c;
@@ -506,23 +521,24 @@ function AppContent() {
           ...prev,
           overallMastery: avg,
         }));
+      } else {
+        setProfile((prev) => ({
+          ...prev,
+          overallMastery: Math.max(0, Math.min(100, prev.overallMastery + (scorePercent >= 70 ? 8 : -2)))
+        }));
       }
     } catch {
-      // Offline fallback
+      // Resilience fallback
+      const gain = scorePercent >= 70 ? 12 : -5;
       setConcepts((prev) =>
         prev.map((c) => {
-          if (c.id === 'c-base-cases') {
+          const wasInQuiz = quizQuestions.some((q) => q.conceptId === c.id);
+          if (wasInQuiz || prev.length <= 3) {
+            const nextMastery = Math.max(0, Math.min(100, c.masteryPercent + gain));
             return {
               ...c,
-              masteryPercent: Math.min(100, c.masteryPercent + 14),
-              status: c.masteryPercent + 14 >= 60 ? 'learning' : 'attention'
-            };
-          }
-          if (c.id === 'c-dfs-traversal') {
-            return {
-              ...c,
-              masteryPercent: Math.min(100, c.masteryPercent + 10),
-              status: c.masteryPercent + 10 >= 60 ? 'learning' : 'attention'
+              masteryPercent: nextMastery,
+              status: nextMastery >= 75 ? 'mastered' : nextMastery >= 40 ? 'learning' : 'attention'
             };
           }
           return c;
@@ -531,7 +547,7 @@ function AppContent() {
 
       setProfile((prev) => ({
         ...prev,
-        overallMastery: Math.min(100, prev.overallMastery + 6)
+        overallMastery: Math.min(100, prev.overallMastery + (scorePercent >= 70 ? 8 : 0))
       }));
     }
   };
@@ -856,6 +872,19 @@ function AppContent() {
                 onCompleteQuiz={handleCompleteQuiz}
                 onInspectCitation={handleInspectReference}
                 onNavigateStudent={(tab) => handleTabSwitch(tab as any)}
+                onGenerateQuiz={async () => {
+                  try {
+                    const generated = await Api.quizzes.generate(activeCourseId, {
+                      difficulty: 'Adaptive',
+                      count: 5
+                    });
+                    if (generated.questions && generated.questions.length > 0) {
+                      setQuizQuestions(generated.questions);
+                    }
+                  } catch (err) {
+                    console.error('Quiz generation error:', err);
+                  }
+                }}
               />
             )}
 
@@ -979,7 +1008,18 @@ function AppContent() {
                   handleTabSwitch('tutor');
                   handleSendMessage(initialPrompt || `Can you explain the main concepts covered in "${sourceTitle}"?`);
                 }}
-                onGenerateQuizFromSource={() => {
+                onGenerateQuizFromSource={async () => {
+                  try {
+                    const generated = await Api.quizzes.generate(activeCourseId, {
+                      difficulty: 'Adaptive',
+                      count: 5
+                    });
+                    if (generated.questions && generated.questions.length > 0) {
+                      setQuizQuestions(generated.questions);
+                    }
+                  } catch (err) {
+                    console.error('Quiz generation error:', err);
+                  }
                   handleTabSwitch('practice');
                 }}
               />

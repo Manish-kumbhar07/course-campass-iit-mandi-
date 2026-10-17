@@ -1,7 +1,7 @@
 /**
  * Mock Service Layer for CourseCompass
- * Deterministic academic dataset for course CS 204: Recursion and Graphs
- * and isolated public preview models.
+ * Deterministic academic dataset for course CS 204: Recursion and Graphs,
+ * full multi-tenant isolation, and persistent mock store in localStorage.
  */
 
 import {
@@ -11,11 +11,9 @@ import {
   CourseDocument,
   Concept,
   SourceReference,
-  TutorAnswer,
   TutorMessage,
   QuizQuestion,
   Flashcard,
-  StudyPlanItem,
   StudyPlanDay,
   TopicMastery
 } from '../types';
@@ -158,7 +156,7 @@ export const DEMO_CONCEPTS: Concept[] = [
     masteryPercent: 64,
     status: 'learning',
     summary: 'Activation records, stack pointer displacement, local frame allocation, and hardware memory bounds.',
-    primaryMisconception: 'Assuming previous frame local variables are overwritten when a new frame is pushed.',
+    primaryMisconception: 'Believing local variables persist across sibling recursive calls in separate stack frames.',
     prerequisiteIds: [],
     dependentConceptIds: ['c-base-cases'],
     citations: [PUBLIC_SAMPLE_CITATIONS.lectureVideo]
@@ -169,13 +167,13 @@ export const DEMO_CONCEPTS: Concept[] = [
     topicId: 'top-recursion',
     name: 'Recursion Base Cases',
     difficulty: 'Foundational',
-    masteryPercent: 44,
-    status: 'attention',
-    summary: 'Guaranteed halting states where the function returns directly without issuing further recursive invocations.',
-    primaryMisconception: 'Treating base cases merely as exception guards rather than structural halting values with algebraic identities.',
+    masteryPercent: 58,
+    status: 'learning',
+    summary: 'Halting conditions, structural progression toward bounds, and identity return elements.',
+    primaryMisconception: 'Returning 0 instead of appropriate base value, or failing to make structural progression on recursive parameters.',
     prerequisiteIds: ['c-stack-mechanics'],
     dependentConceptIds: ['c-divide-conquer', 'c-dfs-traversal'],
-    citations: [PUBLIC_SAMPLE_CITATIONS.textbookRecursion]
+    citations: [PUBLIC_SAMPLE_CITATIONS.textbookRecursion, PUBLIC_SAMPLE_CITATIONS.lectureVideo]
   },
   {
     id: 'c-divide-conquer',
@@ -297,8 +295,88 @@ export const DEMO_TOPIC_MASTERY: TopicMastery[] = [
   }
 ];
 
+export const DEMO_QUIZ_QUESTIONS: QuizQuestion[] = [
+  {
+    id: 'q-demo-1',
+    conceptId: 'c-base-cases',
+    conceptName: 'Recursion Base Cases',
+    prompt:
+      'Examine the following recursive method designed to compute the sum of all elements in an array from index `idx` to the end. What is the fundamental bug?',
+    codeSnippet: `int sumArray(int[] arr, int idx) {\n    if (idx == arr.length) {\n        return 0;\n    }\n    return arr[idx] + sumArray(arr, idx);\n}`,
+    options: [
+      {
+        id: 'opt-a',
+        text: 'The base case return value should be -1 instead of 0.',
+        isCorrect: false,
+        misconceptionExplanation:
+          '0 is the correct additive identity element. Changing it to -1 would corrupt the mathematical sum.'
+      },
+      {
+        id: 'opt-b',
+        text: 'The recursive argument is not progressing toward the base case (`idx` is passed without incrementing), causing infinite recursion and stack overflow.',
+        isCorrect: true
+      },
+      {
+        id: 'opt-c',
+        text: 'The base condition should be `idx > arr.length` to avoid out-of-bounds checks.',
+        isCorrect: false,
+        misconceptionExplanation:
+          'Checking `idx == arr.length` cleanly halts at the exact moment index passes the final element (0-indexed).'
+      },
+      {
+        id: 'opt-d',
+        text: 'Java does not allow arrays to be passed recursively as function arguments.',
+        isCorrect: false,
+        misconceptionExplanation:
+          'Arrays are passed by reference and are perfectly valid parameters in recursive invocations.'
+      }
+    ],
+    explanation:
+      'For recursion to terminate, each recursive step must make strict progress toward the halting state. Passing `idx` unchanged means `sumArray(arr, idx)` repeatedly creates identical stack frames at the same index until memory exhausts.',
+    citation: PUBLIC_SAMPLE_CITATIONS.textbookRecursion
+  },
+  {
+    id: 'q-demo-2',
+    conceptId: 'c-dfs-traversal',
+    conceptName: 'Depth-First Search (DFS)',
+    prompt:
+      'During Depth-First Search on a directed graph, which event guarantees the existence of a directed cycle?',
+    options: [
+      {
+        id: 'opt-2-a',
+        text: 'Encountering an edge to a vertex that has already been completely finished (Black state).',
+        isCorrect: false,
+        misconceptionExplanation:
+          'An edge to a finished (Black) vertex is either a cross-edge or forward-edge in the DFS forest. It indicates an already-explored branch, not an active loop back to an ancestor.'
+      },
+      {
+        id: 'opt-2-b',
+        text: 'Encountering a back-edge to a vertex currently active on the current call stack (Gray state).',
+        isCorrect: true
+      },
+      {
+        id: 'opt-2-c',
+        text: 'Finding an unvisited neighbor vertex (White state).',
+        isCorrect: false,
+        misconceptionExplanation:
+          'Unvisited vertices simply represent tree edges that continue normal DFS traversal.'
+      },
+      {
+        id: 'opt-2-d',
+        text: 'When the adjacency list of the start vertex contains more than 3 outgoing edges.',
+        isCorrect: false,
+        misconceptionExplanation:
+          'Vertex out-degree has no bearing on cycle existence.'
+      }
+    ],
+    explanation:
+      'In a directed graph, a back-edge points to an ancestor on the recursion stack (Gray state), establishing a closed directed cycle.',
+    citation: PUBLIC_SAMPLE_CITATIONS.slidesDfs
+  }
+];
+
 // ----------------------------------------------------------------------------
-// Multi-Tenant In-Memory State for Mock Mode
+// Multi-Tenant State with LocalStorage Persistence
 // Data is strictly partitioned by userId / ownerId
 // ----------------------------------------------------------------------------
 
@@ -311,8 +389,11 @@ interface MockState {
   studyPlansByCourse: Map<string, StudyPlanDay[]>;
   flashcardsByCourse: Map<string, Flashcard[]>;
   messagesByCourse: Map<string, TutorMessage[]>;
+  quizzesByCourse: Map<string, QuizQuestion[]>;
   currentSession: Session | null;
 }
+
+const MOCK_STORAGE_KEY = 'coursecompass_mock_store_v2';
 
 function initMockStore(): MockState {
   const users = new Map<string, User>();
@@ -323,6 +404,7 @@ function initMockStore(): MockState {
   const studyPlansByCourse = new Map<string, StudyPlanDay[]>();
   const flashcardsByCourse = new Map<string, Flashcard[]>();
   const messagesByCourse = new Map<string, TutorMessage[]>();
+  const quizzesByCourse = new Map<string, QuizQuestion[]>();
 
   // Pre-seed ONLY Ananya Sharma in demo tenant
   const ananya: User = {
@@ -339,6 +421,7 @@ function initMockStore(): MockState {
   documentsByCourse.set(DEMO_COURSE.id, [...DEMO_DOCUMENTS]);
   conceptsByCourse.set(DEMO_COURSE.id, [...DEMO_CONCEPTS]);
   masteryByCourse.set(DEMO_COURSE.id, [...DEMO_TOPIC_MASTERY]);
+  quizzesByCourse.set(DEMO_COURSE.id, [...DEMO_QUIZ_QUESTIONS]);
 
   return {
     users,
@@ -349,31 +432,237 @@ function initMockStore(): MockState {
     studyPlansByCourse,
     flashcardsByCourse,
     messagesByCourse,
+    quizzesByCourse,
     currentSession: null,
   };
 }
 
-let store = initMockStore();
+function saveStoreToLocalStorage(state: MockState): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const serializable = {
+      users: Array.from(state.users.entries()),
+      coursesByOwner: Array.from(state.coursesByOwner.entries()),
+      documentsByCourse: Array.from(state.documentsByCourse.entries()),
+      conceptsByCourse: Array.from(state.conceptsByCourse.entries()),
+      masteryByCourse: Array.from(state.masteryByCourse.entries()),
+      studyPlansByCourse: Array.from(state.studyPlansByCourse.entries()),
+      flashcardsByCourse: Array.from(state.flashcardsByCourse.entries()),
+      messagesByCourse: Array.from(state.messagesByCourse.entries()),
+      quizzesByCourse: Array.from(state.quizzesByCourse.entries()),
+    };
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(serializable));
+  } catch (err) {
+    console.error('Failed to persist mock store in localStorage:', err);
+  }
+}
+
+function loadStoreFromLocalStorage(initial: MockState): MockState {
+  try {
+    if (typeof localStorage === 'undefined') return initial;
+    const raw = localStorage.getItem(MOCK_STORAGE_KEY);
+    if (!raw) return initial;
+    const parsed = JSON.parse(raw);
+    if (parsed.users) {
+      for (const [k, v] of parsed.users) initial.users.set(k, v);
+    }
+    if (parsed.coursesByOwner) {
+      for (const [k, v] of parsed.coursesByOwner) initial.coursesByOwner.set(k, v);
+    }
+    if (parsed.documentsByCourse) {
+      for (const [k, v] of parsed.documentsByCourse) initial.documentsByCourse.set(k, v);
+    }
+    if (parsed.conceptsByCourse) {
+      for (const [k, v] of parsed.conceptsByCourse) initial.conceptsByCourse.set(k, v);
+    }
+    if (parsed.masteryByCourse) {
+      for (const [k, v] of parsed.masteryByCourse) initial.masteryByCourse.set(k, v);
+    }
+    if (parsed.studyPlansByCourse) {
+      for (const [k, v] of parsed.studyPlansByCourse) initial.studyPlansByCourse.set(k, v);
+    }
+    if (parsed.flashcardsByCourse) {
+      for (const [k, v] of parsed.flashcardsByCourse) initial.flashcardsByCourse.set(k, v);
+    }
+    if (parsed.messagesByCourse) {
+      for (const [k, v] of parsed.messagesByCourse) initial.messagesByCourse.set(k, v);
+    }
+    if (parsed.quizzesByCourse) {
+      for (const [k, v] of parsed.quizzesByCourse) initial.quizzesByCourse.set(k, v);
+    }
+    return initial;
+  } catch {
+    return initial;
+  }
+}
+
+let store = loadStoreFromLocalStorage(initMockStore());
+
+function generateQuizQuestionsForDocument(
+  doc: CourseDocument,
+  concepts: Concept[]
+): QuizQuestion[] {
+  const cleanTitle = doc.title.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+  const c1 = concepts[0] || { id: `c-${doc.id}-1`, name: `${cleanTitle}: Core Principles` };
+  const c2 = concepts[1] || { id: `c-${doc.id}-2`, name: `${cleanTitle}: Key Invariants` };
+  const c3 = concepts[2] || { id: `c-${doc.id}-3`, name: `${cleanTitle}: Applied Problem Solving` };
+
+  const cite: SourceReference = {
+    id: `cite-${doc.id}-quiz-1`,
+    documentId: doc.id,
+    documentTitle: doc.title,
+    sourceTitle: doc.title,
+    sourceType: doc.type || 'pdf',
+    locationLabel: `${doc.title}, Section 1`,
+    excerpt: doc.summary || `Primary source foundations from ${doc.title}.`,
+    contextSnippet: `Extracted from ${doc.title}`,
+    verificationConfidence: 'verified'
+  };
+
+  return [
+    {
+      id: `q-${doc.id}-1`,
+      conceptId: c1.id,
+      conceptName: c1.name,
+      difficulty: 'Foundational',
+      prompt: `Based on your course material "${cleanTitle}", what is the primary foundational rule required for ${c1.name}?`,
+      options: [
+        {
+          id: `opt-${doc.id}-1a`,
+          text: `All operational base invariants and constraints must be explicitly verified before proceeding with subsequent calculations.`,
+          isCorrect: true
+        },
+        {
+          id: `opt-${doc.id}-1b`,
+          text: `Boundary conditions can be safely skipped if default initializers are present.`,
+          isCorrect: false,
+          misconceptionExplanation: `Skipping boundary conditions violates core structural invariants and leads to unbounded execution.`
+        },
+        {
+          id: `opt-${doc.id}-1c`,
+          text: `State transitions should be executed in arbitrary order regardless of data dependencies.`,
+          isCorrect: false,
+          misconceptionExplanation: `Data dependencies must dictate execution order to preserve system correctness.`
+        },
+        {
+          id: `opt-${doc.id}-1d`,
+          text: `Only final memory consumption matters, while correctness invariants can be deferred.`,
+          isCorrect: false,
+          misconceptionExplanation: `Correctness invariants are paramount; optimizing memory without correctness is a critical failure.`
+        }
+      ],
+      explanation: `According to ${cleanTitle}, establishing and maintaining the base invariant guarantees that subsequent operations terminate and yield mathematically sound results.`,
+      citation: cite
+    },
+    {
+      id: `q-${doc.id}-2`,
+      conceptId: c2.id,
+      conceptName: c2.name,
+      difficulty: 'Intermediate',
+      prompt: `In "${cleanTitle}", which condition triggers a common misconception when analyzing ${c2.name}?`,
+      options: [
+        {
+          id: `opt-${doc.id}-2a`,
+          text: `Assuming that intermediate state checks can be ignored when processing nested subproblems.`,
+          isCorrect: true
+        },
+        {
+          id: `opt-${doc.id}-2b`,
+          text: `Verifying that subproblem solutions satisfy both inductive base rules and step invariants.`,
+          isCorrect: false,
+          misconceptionExplanation: `Verifying inductive properties is the recommended best practice, not a misconception.`
+        },
+        {
+          id: `opt-${doc.id}-2c`,
+          text: `Documenting asymptotic complexity bounds alongside operational implementations.`,
+          isCorrect: false,
+          misconceptionExplanation: `Complexity analysis reinforces algorithmic understanding and prevents performance regressions.`
+        },
+        {
+          id: `opt-${doc.id}-2d`,
+          text: `Using modular decomposition to isolate independent calculation components.`,
+          isCorrect: false,
+          misconceptionExplanation: `Modular decomposition is a core engineering principle that aids correctness verification.`
+        }
+      ],
+      explanation: `Ignoring intermediate states causes students to miss edge cases where subproblem outputs violate overall system assumptions.`,
+      citation: {
+        ...cite,
+        id: `cite-${doc.id}-quiz-2`,
+        locationLabel: `${doc.title}, Section 2`
+      }
+    },
+    {
+      id: `q-${doc.id}-3`,
+      conceptId: c3.id,
+      conceptName: c3.name,
+      difficulty: 'Advanced',
+      prompt: `When applying ${c3.name} to complex examination problems, how should edge-case inputs be systematically handled?`,
+      options: [
+        {
+          id: `opt-${doc.id}-3a`,
+          text: `Identify degenerate inputs (null, zero, single-element, cyclic) and define halting base cases before writing the general inductive step.`,
+          isCorrect: true
+        },
+        {
+          id: `opt-${doc.id}-3b`,
+          text: `Focus strictly on average-case inputs and let runtime exceptions capture edge cases.`,
+          isCorrect: false,
+          misconceptionExplanation: `Relying on runtime exceptions for expected edge cases causes test failures and unhandled errors.`
+        },
+        {
+          id: `opt-${doc.id}-3c`,
+          text: `Hardcode outputs for known inputs while ignoring the underlying recurrence relation.`,
+          isCorrect: false,
+          misconceptionExplanation: `Hardcoding fails to generalize and violates academic grading standards.`
+        },
+        {
+          id: `opt-${doc.id}-3d`,
+          text: `Convert all problems to brute-force enumerations regardless of time and space constraints.`,
+          isCorrect: false,
+          misconceptionExplanation: `Brute-force solutions frequently timeout on large test suites and exceed syllabus complexity limits.`
+        }
+      ],
+      explanation: `Rigorous problem-solving requires addressing degenerate boundary inputs prior to the general algorithm to prevent unhandled exceptions and infinite loops.`,
+      citation: {
+        ...cite,
+        id: `cite-${doc.id}-quiz-3`,
+        locationLabel: `${doc.title}, Section 3`
+      }
+    }
+  ];
+}
 
 export const MockService = {
-  // Session & User
+  // Session & User Registration
+  registerUser(user: User): void {
+    store.users.set(user.id, user);
+    if (!store.coursesByOwner.has(user.id)) {
+      store.coursesByOwner.set(user.id, []);
+    }
+    saveStoreToLocalStorage(store);
+  },
+
   async createUser(
     name: string,
     email: string,
     academicLevel = 'Undergraduate'
   ): Promise<User> {
-    const id = `usr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const id = `usr-${email.replace(/[^a-z0-9]/g, '_')}`;
     const user: User = {
       id,
       name,
       email: email.toLowerCase().trim(),
       academicLevel,
-      institution: 'University College',
+      institution: 'Academic Workspace',
       isNewUser: true,
       createdAt: new Date().toISOString(),
     };
     store.users.set(id, user);
-    store.coursesByOwner.set(id, []);
+    if (!store.coursesByOwner.has(id)) {
+      store.coursesByOwner.set(id, []);
+    }
+    saveStoreToLocalStorage(store);
     return user;
   },
 
@@ -408,7 +697,7 @@ export const MockService = {
     store.currentSession = null;
   },
 
-  // Courses (Scoped to ownerId)
+  // Courses (Scoped strictly to ownerId)
   async getCourses(ownerId: string): Promise<Course[]> {
     return store.coursesByOwner.get(ownerId) || [];
   },
@@ -443,7 +732,7 @@ export const MockService = {
       name: data.name.trim(),
       code: data.code.trim().toUpperCase(),
       subject: data.subject.trim(),
-      examDate: data.examDate,
+      examDate: data.examDate || new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       dailyStudyMinutes: data.dailyStudyMinutes || 45,
       overallMastery: 0,
       documentsCount: 0,
@@ -457,6 +746,8 @@ export const MockService = {
     store.documentsByCourse.set(id, []);
     store.conceptsByCourse.set(id, []);
     store.masteryByCourse.set(id, []);
+    store.quizzesByCourse.set(id, []);
+    saveStoreToLocalStorage(store);
     return course;
   },
 
@@ -477,6 +768,7 @@ export const MockService = {
     };
     courses[index] = updated;
     store.coursesByOwner.set(ownerId, courses);
+    saveStoreToLocalStorage(store);
     return updated;
   },
 
@@ -492,9 +784,11 @@ export const MockService = {
     store.studyPlansByCourse.delete(courseId);
     store.flashcardsByCourse.delete(courseId);
     store.messagesByCourse.delete(courseId);
+    store.quizzesByCourse.delete(courseId);
+    saveStoreToLocalStorage(store);
   },
 
-  // Documents & Uploads
+  // Documents & Upload Pipeline with Automatic Concept & Quiz Synthesis
   async createDocument(
     ownerId: string,
     courseId: string,
@@ -509,6 +803,86 @@ export const MockService = {
     else if (['mp3', 'wav', 'm4a'].includes(ext)) docType = 'audio';
     else if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) docType = 'image';
 
+    const cleanTitle = (title || file.name).replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+    const newConcepts: Concept[] = [
+      {
+        id: `c-${docId}-1`,
+        courseId,
+        topicId: `top-${courseId}-1`,
+        name: `${cleanTitle}: Core Principles`,
+        difficulty: 'Foundational',
+        masteryPercent: 45,
+        status: 'learning',
+        summary: `Foundational definitions, invariants, and initial formulas extracted from ${cleanTitle}.`,
+        primaryMisconception: `Confusing introductory definitions with operational constraints.`,
+        prerequisiteIds: [],
+        citations: [
+          {
+            id: `cite-${docId}-1`,
+            documentId: docId,
+            documentTitle: title || file.name,
+            sourceTitle: title || file.name,
+            sourceType: docType,
+            locationLabel: `${title || file.name}, Section 1`,
+            excerpt: `Primary foundational principles and structural definitions extracted from ${title || file.name}.`,
+            contextSnippet: `From ${title || file.name}`,
+            verificationConfidence: 'verified'
+          }
+        ]
+      },
+      {
+        id: `c-${docId}-2`,
+        courseId,
+        topicId: `top-${courseId}-1`,
+        name: `${cleanTitle}: Key Invariants`,
+        difficulty: 'Intermediate',
+        masteryPercent: 35,
+        status: 'attention',
+        summary: `Critical operational invariants, conditions, and boundary behaviors detailed in ${cleanTitle}.`,
+        primaryMisconception: `Assuming boundary conditions hold without explicit verification.`,
+        prerequisiteIds: [`c-${docId}-1`],
+        citations: [
+          {
+            id: `cite-${docId}-2`,
+            documentId: docId,
+            documentTitle: title || file.name,
+            sourceTitle: title || file.name,
+            sourceType: docType,
+            locationLabel: `${title || file.name}, Section 2`,
+            excerpt: `Operational constraints, boundary checks, and system invariants detailed in ${title || file.name}.`,
+            contextSnippet: `From ${title || file.name}`,
+            verificationConfidence: 'verified'
+          }
+        ]
+      },
+      {
+        id: `c-${docId}-3`,
+        courseId,
+        topicId: `top-${courseId}-1`,
+        name: `${cleanTitle}: Applied Problem Solving`,
+        difficulty: 'Advanced',
+        masteryPercent: 20,
+        status: 'attention',
+        summary: `Synthesizing theoretical foundations into rigorous problem solving and exam analysis for ${cleanTitle}.`,
+        primaryMisconception: `Failing to check edge-case and degenerate inputs during comprehensive analysis.`,
+        prerequisiteIds: [`c-${docId}-2`],
+        citations: [
+          {
+            id: `cite-${docId}-3`,
+            documentId: docId,
+            documentTitle: title || file.name,
+            sourceTitle: title || file.name,
+            sourceType: docType,
+            locationLabel: `${title || file.name}, Section 3`,
+            excerpt: `Problem solving strategies, proofs, and application exercises in ${title || file.name}.`,
+            contextSnippet: `From ${title || file.name}`,
+            verificationConfidence: 'verified'
+          }
+        ]
+      }
+    ];
+
     const document: CourseDocument = {
       id: docId,
       courseId,
@@ -519,19 +893,46 @@ export const MockService = {
         ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
         : '2.5 MB',
       status: 'ready',
-      extractedConcepts: ['Core Foundations', 'Key Definitions'],
-      summary: `Indexed material for ${title || file.name}`,
+      extractedConcepts: newConcepts.map((c) => c.name),
+      summary: `Indexed material covering foundational principles, invariants, and applied problem solving for ${cleanTitle}.`,
     };
 
+    // Store document
     const docs = store.documentsByCourse.get(courseId) || [];
     store.documentsByCourse.set(courseId, [document, ...docs]);
 
-    // Update document count on course
+    // Store extracted concepts
+    const existingConcepts = store.conceptsByCourse.get(courseId) || [];
+    store.conceptsByCourse.set(courseId, [...newConcepts, ...existingConcepts]);
+
+    // Generate adaptive quiz questions for this document
+    const newQuestions = generateQuizQuestionsForDocument(document, newConcepts);
+    const existingQuestions = store.quizzesByCourse.get(courseId) || [];
+    store.quizzesByCourse.set(courseId, [...newQuestions, ...existingQuestions]);
+
+    // Update topic mastery
+    const topicMastery: TopicMastery = {
+      topicId: `top-${courseId}-1`,
+      topicTitle: `${cleanTitle} Foundations`,
+      masteryPercent: 33,
+      conceptsTotal: 3,
+      conceptsMastered: 0,
+      conceptsDeveloping: 1,
+      conceptsAttention: 2
+    };
+    const currentMastery = store.masteryByCourse.get(courseId) || [];
+    store.masteryByCourse.set(courseId, [topicMastery, ...currentMastery]);
+
+    // Update course metadata
     const courses = store.coursesByOwner.get(ownerId) || [];
     const course = courses.find((c) => c.id === courseId);
     if (course) {
       course.documentsCount = (course.documentsCount || 0) + 1;
+      course.conceptsCount = (store.conceptsByCourse.get(courseId) || []).length;
+      course.overallMastery = 33;
     }
+
+    saveStoreToLocalStorage(store);
 
     const job = {
       id: `job-${Date.now()}`,
@@ -539,7 +940,7 @@ export const MockService = {
       stage: 'ready',
       stageNumber: 7,
       totalStages: 7,
-      stageDescription: 'Corpus indexing complete.',
+      stageDescription: 'Corpus indexing complete. Concepts and adaptive quizzes synthesized.',
       progressPercent: 100,
       isCompleted: true,
     };
@@ -567,6 +968,7 @@ export const MockService = {
     const doc = docs.find((d) => d.id === documentId);
     if (!doc) throw new Error('Document not found');
     doc.status = status;
+    saveStoreToLocalStorage(store);
     return doc;
   },
 
@@ -585,6 +987,7 @@ export const MockService = {
     if (course && course.documentsCount > 0) {
       course.documentsCount -= 1;
     }
+    saveStoreToLocalStorage(store);
   },
 
   // Learning features
@@ -593,6 +996,7 @@ export const MockService = {
   },
 
   async getTopics(ownerId: string, courseId: string): Promise<any[]> {
+    const concepts = store.conceptsByCourse.get(courseId) || [];
     return [
       {
         id: `topic-${courseId}-1`,
@@ -600,7 +1004,7 @@ export const MockService = {
         title: 'Foundations & Concepts',
         description: 'Core introductory principles and definitions',
         order: 1,
-        conceptIds: (store.conceptsByCourse.get(courseId) || []).map((c) => c.id),
+        conceptIds: concepts.map((c) => c.id),
       },
     ];
   },
@@ -612,7 +1016,17 @@ export const MockService = {
       totalConcepts: concepts.length,
       totalTopics: concepts.length > 0 ? 1 : 0,
       concepts,
-      edges: [],
+      edges: concepts
+        .filter((c) => c.prerequisiteIds && c.prerequisiteIds.length > 0)
+        .flatMap((c) =>
+          c.prerequisiteIds.map((pId) => ({
+            id: `edge-${pId}-${c.id}`,
+            sourceConceptId: pId,
+            targetConceptId: c.id,
+            relationshipType: 'prerequisite',
+            confidence: 1.0
+          }))
+        ),
       topics: [],
     };
   },
@@ -624,11 +1038,11 @@ export const MockService = {
     explanationLevel = 'rigorous'
   ): Promise<TutorMessage> {
     const docs = store.documentsByCourse.get(courseId) || [];
-    if (docs.length === 0) {
+    if (docs.length === 0 && courseId !== 'course-cs204') {
       return {
         id: `msg-${Date.now()}`,
         sender: 'tutor',
-        text: 'This question was not found in your course material because no files have been uploaded yet. Please upload your textbook PDF, lecture slides, or video recording to begin grounded tutoring.',
+        text: 'This question was not found in your course material because no files have been uploaded yet. Please upload your textbook PDF, lecture slides, or video recording to begin grounded tutoring with verified citations.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         answerState: 'not_found',
         citations: [],
@@ -637,27 +1051,58 @@ export const MockService = {
 
     const lower = message.toLowerCase();
     const qWords = lower.split(/\s+/).filter((w) => w.length > 3);
+
+    // Check demo responses for CS 204
+    if (courseId === 'course-cs204') {
+      if (lower.includes('base case') || lower.includes('terminate')) {
+        return {
+          id: `msg-${Date.now()}`,
+          sender: 'tutor',
+          text: `Every recursive method requires at least one non-recursive halting base case. As demonstrated by Professor Henderson in Lecture 08 (14:32) and detailed in Textbook Chapter 4 (p. 112), omitting base case parameter progression creates unbounded activation records on the system call stack, triggering a hardware StackOverflowException.\n\nLevel: ${explanationLevel}. Remember: When returning aggregated values, base cases must return the algebraic identity element (0 for summation, true for universal conjunction).`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          answerState: 'supported',
+          citations: [PUBLIC_SAMPLE_CITATIONS.textbookRecursion, PUBLIC_SAMPLE_CITATIONS.lectureVideo],
+        };
+      }
+      if (lower.includes('dfs') || lower.includes('cycle') || lower.includes('three-color')) {
+        return {
+          id: `msg-${Date.now()}`,
+          sender: 'tutor',
+          text: 'In Depth-First Search on directed graphs, cycle detection relies on three vertex states:\n• White: Unvisited vertex\n• Gray: Currently active on the recursion call stack\n• Black: Subtree completely explored and popped\n\nPer Invariant 3 in Slide Deck 12 (Slide 19), a cycle exists if and only if an edge leads to an active Gray vertex. An edge to a Black vertex is a cross-edge between separate branches, not an ancestor back-edge.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          answerState: 'supported',
+          citations: [PUBLIC_SAMPLE_CITATIONS.slidesDfs],
+        };
+      }
+    }
+
+    // Match against user's uploaded materials
     const matchingDoc = docs.find((doc) => {
       const docTitle = (doc.title || '').toLowerCase();
       const docSummary = (doc.summary || '').toLowerCase();
-      return qWords.some((w) => docTitle.includes(w) || docSummary.includes(w));
+      const concepts = (doc.extractedConcepts || []).map((c) => c.toLowerCase());
+      return (
+        qWords.some((w) => docTitle.includes(w) || docSummary.includes(w)) ||
+        concepts.some((c) => qWords.some((w) => c.includes(w)))
+      );
     });
 
     if (matchingDoc) {
       return {
         id: `msg-${Date.now()}`,
         sender: 'tutor',
-        text: `Based on your uploaded courseware "${matchingDoc.title}":\n\n${matchingDoc.summary || 'Fundamental principles and definitions directly addressing your inquiry.'}\n\nReview this section to master this topic for your course.`,
+        text: `Based directly on your uploaded courseware "${matchingDoc.title}":\n\n${matchingDoc.summary}\n\nCore verified principles indicate that state invariants and foundational definitions must be strictly observed. Review this section to master this topic for your upcoming exams.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         answerState: 'supported',
         citations: [
           {
-            id: `cite-${matchingDoc.id}`,
+            id: `cite-${matchingDoc.id}-tut`,
             documentId: matchingDoc.id,
+            documentTitle: matchingDoc.title,
             sourceTitle: matchingDoc.title,
             sourceType: matchingDoc.type,
             locationLabel: `${matchingDoc.title}, Section 1`,
-            excerpt: matchingDoc.summary || 'Verified course material grounding excerpt.',
+            excerpt: matchingDoc.summary || `Verified course material excerpt from ${matchingDoc.title}.`,
             contextSnippet: `From ${matchingDoc.title}`,
             verificationConfidence: 'verified',
           },
@@ -667,10 +1112,11 @@ export const MockService = {
 
     // Unrelated query or irrelevant document
     const docNames = docs.map((d) => `"${d.title}"`).slice(0, 3).join(', ');
+    const docContext = docNames ? ` (currently uploaded: ${docNames})` : '';
     return {
       id: `msg-${Date.now()}`,
       sender: 'tutor',
-      text: `This topic was not found in your currently uploaded course materials (${docNames}). The uploaded material does not appear to be relevant to this question.\n\nPlease upload the relevant PDF, lecture video, or slide deck covering this topic so CourseCompass can provide a verified, source-grounded answer with citations.`,
+      text: `This topic was not found in your currently uploaded course materials${docContext}.\n\nThe uploaded material does not appear to be relevant to this question. Please upload a relevant PDF, lecture video, or slide deck covering this topic so CourseCompass can provide a verified, source-grounded answer with citations.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       answerState: 'not_found',
       citations: [],
@@ -678,7 +1124,25 @@ export const MockService = {
   },
 
   async getQuiz(ownerId: string, courseId: string): Promise<QuizQuestion[]> {
-    if (courseId === 'course-cs204') return [];
+    if (courseId === 'course-cs204') {
+      return DEMO_QUIZ_QUESTIONS;
+    }
+
+    const questions = store.quizzesByCourse.get(courseId);
+    if (questions && questions.length > 0) {
+      return questions;
+    }
+
+    // If no questions yet, synthesize from uploaded documents
+    const docs = store.documentsByCourse.get(courseId) || [];
+    if (docs.length > 0) {
+      const concepts = store.conceptsByCourse.get(courseId) || [];
+      const generated = generateQuizQuestionsForDocument(docs[0], concepts);
+      store.quizzesByCourse.set(courseId, generated);
+      saveStoreToLocalStorage(store);
+      return generated;
+    }
+
     return [];
   },
 
@@ -686,17 +1150,73 @@ export const MockService = {
     ownerId: string,
     courseId: string,
     quizId: string,
-    answers: any[]
+    answers: Array<{ questionId: string; selectedOptionId?: string | null; submittedText?: string | null }>
   ): Promise<any> {
+    let courseQuestions = (await this.getQuiz(ownerId, courseId)) || [];
+    let targetCourseId = courseId;
+
+    if (courseQuestions.length === 0 && answers.length > 0) {
+      const qId = answers[0].questionId;
+      for (const [cId, qList] of store.quizzesByCourse.entries()) {
+        if (qList.some((q) => q.id === qId)) {
+          courseQuestions = qList;
+          targetCourseId = cId;
+          break;
+        }
+      }
+    }
+
+    let correctCount = 0;
+
+    const feedbackList = answers.map((ans) => {
+      const question = courseQuestions.find((q) => q.id === ans.questionId);
+      const chosenOpt = question?.options.find((o) => o.id === ans.selectedOptionId);
+      const isCorrect = chosenOpt?.isCorrect ?? false;
+      if (isCorrect) correctCount += 1;
+      return {
+        questionId: ans.questionId,
+        isCorrect,
+        explanation: chosenOpt?.misconceptionExplanation || question?.explanation || ''
+      };
+    });
+
+    const total = answers.length || 1;
+    const scorePercent = Math.round((correctCount / total) * 100);
+
+    // Update concepts mastery
+    const concepts = store.conceptsByCourse.get(targetCourseId) || [];
+    for (const q of courseQuestions) {
+      const targetConcept = concepts.find((c) => c.id === q.conceptId);
+      if (targetConcept) {
+        const delta = scorePercent >= 70 ? 12 : -5;
+        targetConcept.masteryPercent = Math.max(0, Math.min(100, targetConcept.masteryPercent + delta));
+        targetConcept.status = targetConcept.masteryPercent >= 75 ? 'mastered' : targetConcept.masteryPercent >= 40 ? 'learning' : 'attention';
+      }
+    }
+
+    // Update overall course mastery
+    const courses = store.coursesByOwner.get(ownerId) || [];
+    const course = courses.find((c) => c.id === courseId);
+    if (course && concepts.length > 0) {
+      const avg = Math.round(concepts.reduce((sum, c) => sum + c.masteryPercent, 0) / concepts.length);
+      course.overallMastery = avg;
+    }
+
+    saveStoreToLocalStorage(store);
+
     return {
       attemptId: `att-${Date.now()}`,
-      scorePercent: 100,
-      totalQuestions: answers.length,
-      correctCount: answers.length,
-      masteryGainPercent: 10,
-      weakConceptsIdentified: [],
-      updatedConcepts: [],
-      feedbackList: [],
+      scorePercent,
+      totalQuestions: total,
+      correctCount,
+      masteryGainPercent: scorePercent >= 70 ? 12 : 0,
+      weakConceptsIdentified: concepts.filter((c) => c.masteryPercent < 50).map((c) => c.id),
+      updatedConcepts: concepts.map((c) => ({
+        conceptId: c.id,
+        newMasteryPercent: c.masteryPercent,
+        newStatus: c.status
+      })),
+      feedbackList,
     };
   },
 
@@ -717,7 +1237,9 @@ export const MockService = {
   },
 
   resetDemoData(): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(MOCK_STORAGE_KEY);
+    }
     store = initMockStore();
   },
 };
-

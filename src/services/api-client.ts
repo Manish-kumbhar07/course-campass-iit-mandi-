@@ -84,6 +84,11 @@ export async function apiRequest<T>(
       return {} as T;
     }
 
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      throw new ApiError('Unable to connect to the CourseCompass server', 503);
+    }
+
     if (!response.ok) {
       let errorData: any = null;
       try {

@@ -4,6 +4,7 @@ Guarantees idempotency and prevents duplicate pages, chunks, and visual elements
 """
 import json
 import logging
+import uuid
 from typing import List
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.models.document import (
     ProcessingJob,
     VisualElement
 )
+from app.models.graph import Topic, Concept, ConceptRelationship
 from app.schemas.extraction import NormalizedDocumentExtraction
 from app.rag.embeddings.factory import get_embedding_provider
 
@@ -122,6 +124,76 @@ class IngestionPersistenceService:
         doc.summary = extraction.summary
         doc.extracted_concepts = extraction.key_concepts
         doc.error_message = None
+
+        # 5. Populate Concepts and Topics in Knowledge Graph
+        if extraction.key_concepts:
+            try:
+                topic_result = await db.execute(
+                    select(Topic).where(Topic.course_id == doc.course_id)
+                )
+                topic = topic_result.scalars().first()
+                if not topic:
+                    topic = Topic(
+                        id=str(uuid.uuid4()),
+                        course_id=doc.course_id,
+                        title=f"Materials: {doc.title[:50]}",
+                        description=f"Concepts derived from {doc.title}",
+                        sort_order=1
+                    )
+                    db.add(topic)
+                    await db.flush()
+
+                existing_concepts_res = await db.execute(
+                    select(Concept).where(Concept.course_id == doc.course_id)
+                )
+                existing_concepts = {c.name.lower(): c for c in existing_concepts_res.scalars().all()}
+
+                previous_concept = None
+                for idx, concept_name in enumerate(extraction.key_concepts):
+                    clean_name = concept_name.strip()
+                    if not clean_name:
+                        continue
+                    if clean_name.lower() in existing_concepts:
+                        concept_record = existing_concepts[clean_name.lower()]
+                    else:
+                        concept_record = Concept(
+                            id=str(uuid.uuid4()),
+                            course_id=doc.course_id,
+                            topic_id=topic.id,
+                            name=clean_name,
+                            canonical_name=clean_name.lower(),
+                            difficulty="Foundational" if idx == 0 else ("Intermediate" if idx < 3 else "Advanced"),
+                            mastery_percent=0,
+                            status="learning",
+                            summary=f"Key concept '{clean_name}' extracted from {doc.title}.",
+                            primary_misconception=f"Overlooking boundary constraints or formal definitions of {clean_name}."
+                        )
+                        db.add(concept_record)
+                        await db.flush()
+                        existing_concepts[clean_name.lower()] = concept_record
+
+                    if previous_concept and previous_concept.id != concept_record.id:
+                        rel_check = await db.execute(
+                            select(ConceptRelationship).where(
+                                ConceptRelationship.source_concept_id == previous_concept.id,
+                                ConceptRelationship.target_concept_id == concept_record.id,
+                                ConceptRelationship.relationship_type == "prerequisite"
+                            )
+                        )
+                        if not rel_check.scalars().first():
+                            rel = ConceptRelationship(
+                                id=str(uuid.uuid4()),
+                                course_id=doc.course_id,
+                                source_concept_id=previous_concept.id,
+                                target_concept_id=concept_record.id,
+                                relationship_type="prerequisite",
+                                confidence=0.9
+                            )
+                            db.add(rel)
+
+                    previous_concept = concept_record
+            except Exception as graph_err:
+                logger.warning(f"Could not populate knowledge graph for document {document_id}: {graph_err}")
 
         await db.commit()
         await db.refresh(doc)
